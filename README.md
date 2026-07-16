@@ -138,7 +138,7 @@ physics-engine credential without physics on the critical path.
 
 **OMNI-EPIC** (code-as-environment → we constrain to DSL-as-environment for verifiability) ·
 **Voyager / EnvGen** (self-verification & feedback → our repair loop) ·
-**ACCEL / PAIRED** (minimax-regret curation → our mutation selection) ·
+**ACCEL / PAIRED** (regret-driven curation → our binary regret-proxy mutation selection) ·
 **Sokoban/Mario PCG** (generate-then-solver-verify → our L2 solvability gate). See
 [DESIGN.md](DESIGN.md) for the full mapping.
 
