@@ -74,6 +74,16 @@ length. *The same solver that proves solvability supplies the training signal.* 
 with `uv run --extra rl python learnability.py`; the offline flywheel (generate → verify → oracle
 GIF → trace → mutate) is the top of `uv run demo.py --offline`.
 
+**Honest caveat, made explicit (not hidden):** the shaped potential *is* the oracle's optimal value
+function V\*, so shaped-reward RL is easy by construction — a zero-learning V\*-greedy policy already
+solves every fixture at oracle-optimal length (`uv run python baselines.py` shows this next to a 0%
+random floor). That curve proves *plumbing*, not difficulty. The honest learning test removes the
+compass from **both** the reward and the observation (`reward_mode="sparse"`, `leak_goal_vectors=False`):
+under it PPO still learns from scratch — on `open_can`, mean reward **1.95 → 9.9**, trained agent
+solves at **oracle-optimal 9 steps** with no V\* signal anywhere (`assets/learnability_sparse.png`;
+`learnability.py --reward-mode sparse --no-leak`). Long-horizon sparse fixtures (three_rooms) remain
+genuinely exploration-hard — scoped as future work, not claimed.
+
 ## An agent maneuvers it — and surfaces the pixel-nav gap
 
 The challenge asks that an agent maneuver through the generated environments — so here is **Claude

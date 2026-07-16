@@ -32,6 +32,10 @@ def main():
     ap.add_argument("--env", default="coins_hazard", choices=list(F.ALL))
     ap.add_argument("--steps", type=int, default=200_000)
     ap.add_argument("--out", default="assets/learnability.png")
+    ap.add_argument("--reward-mode", default="shaped", choices=["shaped", "sparse", "curiosity"],
+                    help="'shaped' = PBRS from V* (easy by construction); 'sparse' = honest RL test")
+    ap.add_argument("--no-leak", action="store_true",
+                    help="drop goal-relative obs vectors — removes the observation compass too")
     args = ap.parse_args()
 
     from stable_baselines3 import PPO
@@ -42,10 +46,13 @@ def main():
     import matplotlib.pyplot as plt
 
     spec = F.ALL[args.env]()
-    print(f"[learnability] env='{spec['name']}' — training PPO for {args.steps} steps")
+    print(f"[learnability] env='{spec['name']}' reward_mode={args.reward_mode} "
+          f"leak_goal_vectors={not args.no_leak} — training PPO for {args.steps} steps")
 
     def make():
-        return Monitor(make_from_spec(spec, obs_mode="state"))
+        return Monitor(make_from_spec(spec, obs_mode="state",
+                                      reward_mode=args.reward_mode,
+                                      leak_goal_vectors=not args.no_leak))
 
     env = make()
 
@@ -71,7 +78,8 @@ def main():
     plt.figure(figsize=(6.4, 3.4), dpi=120)
     plt.plot(cb.x, cb.y, color="#56b4ff", lw=2)
     plt.axhline(0, color="#555", lw=0.8, ls="--")
-    plt.title(f"PPO learns '{spec['name']}' — the env feeds RL", fontsize=11)
+    plt.title(f"PPO learns '{spec['name']}' ({args.reward_mode} reward"
+              f"{', no obs compass' if args.no_leak else ''}) — the env feeds RL", fontsize=11)
     plt.xlabel("environment steps"); plt.ylabel("mean episode reward")
     plt.grid(alpha=0.2); plt.tight_layout()
     plt.savefig(args.out)
@@ -86,7 +94,8 @@ def main():
             a, _ = model.predict(obs, deterministic=True)
             return int(a)
 
-    ev = make_from_spec(spec, obs_mode="state")
+    ev = make_from_spec(spec, obs_mode="state",
+                        reward_mode=args.reward_mode, leak_goal_vectors=not args.no_leak)
     out = run_episode(ev, SB3Policy(), collect_frames=True)
     R.save_gif(out["frames"], "assets/learnability_solved.gif", fps=8)
     print(f"[learnability] trained agent: won={out['won']} steps={out['steps']} "

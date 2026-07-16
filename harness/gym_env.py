@@ -10,8 +10,12 @@ vision policy in principle) mounts on it unchanged:
 Two design points that matter for GI:
   * obs_mode="state" | "pixels" — the SAME env yields a compact vector OR a rendered frame,
     so you can train/eval on code-truth features or on pixels (their policy's input).
-  * reward is potential-based shaping from the oracle cost-to-go (verifier.build_distance_field)
-    plus the sparse code-truth terminal — the solver that proves solvability also feeds RL.
+  * reward_mode="shaped" is potential-based shaping from the oracle cost-to-go
+    (verifier.build_distance_field) + the sparse code-truth terminal. Because that potential IS the
+    optimal value function V*, it makes the RL problem easy by construction (a V*-greedy baseline
+    already solves it — see agents/reward_greedy.py and baselines.py). reward_mode="sparse" (with
+    leak_goal_vectors=False) removes that compass for an HONEST learning test; "curiosity" adds a
+    count-based novelty bonus that uses no oracle information.
   * info["code_state"]["predicates"] is the frame-exact, code-defined reward signal.
 
 The 6-input action SHAPE [fwd,back,left,right,mouseDX,mouseDY] that GI's policy emits is exposed
@@ -45,12 +49,16 @@ class HarnessEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"]}
 
     def __init__(self, spec: EnvSpec, obs_mode: str = "state",
-                 action_mode: str = "discrete", max_steps: Optional[int] = None):
+                 action_mode: str = "discrete", max_steps: Optional[int] = None,
+                 reward_mode: str = "shaped", leak_goal_vectors: bool = True):
         super().__init__()
         self.env_spec = spec
         self.render_mode = "rgb_array"          # gymnasium.Env.spec stays None (no shadowing)
         self.obs_mode = obs_mode
         self.action_mode = action_mode
+        self.reward_mode = reward_mode          # "shaped" (PBRS from V*) | "sparse" | "curiosity"
+        self.leak_goal_vectors = leak_goal_vectors  # False -> drop goal-relative obs (honest RL test)
+        self._visits: dict = {}                 # per-episode visit counts (curiosity mode)
         self.world = compile_spec(spec)
         self.max_steps = max_steps or spec.time_limit
         self._dist = verifier.build_distance_field(self.world.level, spec.objective)
@@ -72,7 +80,8 @@ class HarnessEnv(gym.Env):
     # ── obs ──────────────────────────────────────────────────────────────────────
 
     def _state_dim(self) -> int:
-        return 4 + 1 + MAX_PREDS + 6  # agent, exit, held_frac, preds, nearest key/can/coin
+        # agent(2)+exit(2)+held_frac(1)+preds(MAX_PREDS); +6 nearest key/can/coin ONLY if leaked
+        return 4 + 1 + MAX_PREDS + (6 if self.leak_goal_vectors else 0)
 
     def _state_vec(self) -> np.ndarray:
         w, h = self.env_spec.width, self.env_spec.height
@@ -89,9 +98,10 @@ class HarnessEnv(gym.Env):
         preds = list(self.world.predicate_states().values())
         for i in range(MAX_PREDS):
             v.append(1.0 if (i < len(preds) and preds[i]) else 0.0)
-        v += self._nearest_vec(self.world.level.keys.keys())
-        v += self._nearest_vec(self.world.level.cans.values())
-        v += self._nearest_vec(self.world.level.coins.keys())
+        if self.leak_goal_vectors:                        # goal-relative compass (off for honest RL)
+            v += self._nearest_vec(self.world.level.keys.keys())
+            v += self._nearest_vec(self.world.level.cans.values())
+            v += self._nearest_vec(self.world.level.coins.keys())
         return np.array(v, dtype=np.float32)
 
     def _nearest_vec(self, cells):
@@ -118,6 +128,7 @@ class HarnessEnv(gym.Env):
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
         self.world.reset()
+        self._visits = {}
         return self._obs(), {"code_state": self.world.code_state()}
 
     def _phi(self):
@@ -136,11 +147,24 @@ class HarnessEnv(gym.Env):
         self.world.step(act)
         phi_after = self._phi()
 
-        # Potential-based shaping F = GAMMA*phi(s') - phi(s) (Ng et al.; policy-invariant when the
-        # learner's discount == GAMMA). On a genuine no-op (wall-bump / idle) the state is
-        # unchanged, so we zero the shaping — otherwise PBRS's (GAMMA-1)*phi term would refund
-        # part of the step cost and faintly reward bumping. Net for a no-op: exactly -STEP_COST.
-        shaping = 0.0 if self.world.state == state_before else (GAMMA * phi_after - phi_before)
+        # Reward modes (the shaped default is the honest-but-easy case; sparse is the real RL test):
+        #   shaped   : PBRS F = GAMMA*phi(s') - phi(s) (Ng et al.), phi = -cost_to_go/max_d = V*.
+        #              Policy-invariant when the learner's discount == GAMMA. Zeroed on a no-op so a
+        #              wall-bump nets exactly -STEP_COST (else (GAMMA-1)*phi faintly rewards bumping).
+        #              NB: because phi IS the oracle's optimal value function, a V*-greedy policy
+        #              (agents/reward_greedy.py) already solves at oracle-optimal here with NO
+        #              learning — so a PPO curve under "shaped" proves plumbing, not difficulty.
+        #   sparse   : only the step cost + the terminal bonus — no oracle compass. This is the
+        #              honest RL challenge (pair with leak_goal_vectors=False to remove the obs compass).
+        #   curiosity: a count-based novelty bonus, uses NO oracle information.
+        moved = self.world.state != state_before
+        if self.reward_mode == "shaped":
+            shaping = (GAMMA * phi_after - phi_before) if moved else 0.0
+        elif self.reward_mode == "curiosity":
+            self._visits[self.world.state] = self._visits.get(self.world.state, 0) + 1
+            shaping = (0.3 / math.sqrt(self._visits[self.world.state])) if moved else 0.0
+        else:  # "sparse"
+            shaping = 0.0
         reward = -STEP_COST + shaping
         terminated = self.world.done and self.world.won
         truncated = (self.world.done and not self.world.won) or (self.world.step_count >= self.max_steps)

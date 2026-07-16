@@ -12,9 +12,10 @@ from harness import fixtures as F
 from harness.dsl.schema import EnvSpec
 from harness.verifier import verify, solve
 from harness.engine import gridlogic as G
-from harness.gym_env import make_from_spec, DISCRETE_ACTIONS
+from harness.gym_env import make_from_spec, DISCRETE_ACTIONS, STEP_COST
 from harness.rollout import run_episode
 from harness.agents.scripted import ScriptedOracle
+from harness.agents.reward_greedy import VStarGreedy
 from harness.mutate import mutate
 from harness import eval as E
 
@@ -200,3 +201,28 @@ def test_world_model_critic_flags_hallucinations():
                           held=real[3].held, crates=real[3].crates)
     assert len(critic.critique(lvl, hall)) >= 1
     assert critic.score(lvl, hall) < 1.0
+
+
+# ── Phase 2: de-circularized RL (reward modes + V*-greedy baseline) ────────────────
+
+def test_vstar_greedy_solves_shaped_at_oracle_optimal():
+    """The shaped reward IS V*, so a zero-learning greedy-on-V* already solves optimally —
+    which is exactly why a shaped PPO curve proves plumbing, not difficulty."""
+    out = run_episode(make_from_spec(F.open_can()), VStarGreedy())
+    assert out["won"] and out["steps"] == out["oracle_len"]
+
+
+def test_sparse_reward_has_no_shaping():
+    """Under reward_mode='sparse' a non-winning step nets exactly -STEP_COST (no oracle compass)."""
+    env = make_from_spec(F.open_can(), reward_mode="sparse")
+    env.reset()
+    _, r, _, _, info = env.step(DISCRETE_ACTIONS.index("wait"))   # a no-win, no-terminal step
+    assert not info["won"]
+    assert abs(r - (-STEP_COST)) < 1e-6
+
+
+def test_deleaked_obs_drops_goal_compass():
+    """leak_goal_vectors=False removes the 6 goal-relative obs dims (the observation compass)."""
+    leaked = make_from_spec(F.open_can())
+    honest = make_from_spec(F.open_can(), leak_goal_vectors=False)
+    assert honest.observation_space.shape[0] == leaked.observation_space.shape[0] - 6
