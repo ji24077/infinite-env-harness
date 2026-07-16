@@ -188,5 +188,7 @@ assets/            README media (regenerate: uv run python scripts/build_assets.
 ```
 
 Reproduce everything: `uv run python scripts/build_specs.py && uv run python scripts/build_assets.py`.
-Tests: `uv run --with pytest pytest -q` (22 smoke tests; the generator's tool-use + repair loop
-is covered via a mocked client, so the online path is exercised without an API key).
+Tests: `uv run --with pytest pytest -q` — the full smoke suite; the generator's tool-use + repair
+loop is covered via a mocked client, and the Gymnasium env passes
+`gymnasium.utils.env_checker.check_env`, so the online path and the RL interface are both exercised
+without an API key.

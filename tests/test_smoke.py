@@ -42,6 +42,11 @@ def test_unsolvable_is_rejected():
     assert not vr.ok and vr.stage in ("L1", "L2")
 
 
+def test_gym_env_passes_official_check_env():
+    from gymnasium.utils.env_checker import check_env
+    check_env(make_from_spec(F.open_can()), skip_render_check=False)   # real Gymnasium interface
+
+
 def test_gym_reward_positive_on_oracle_and_random_fails():
     spec = F.key_crate_return()
     env = make_from_spec(spec)

@@ -28,7 +28,7 @@ class ScriptedOracle:
         self.i = 0
 
     def reset(self, env):
-        plan, _ = verifier.solve(env.world.level, env.spec.objective)
+        plan, _ = verifier.solve(env.world.level, env.env_spec.objective)
         self.plan = plan or []
         self.i = 0
 
@@ -38,7 +38,7 @@ class ScriptedOracle:
             return int(self.rng.integers(0, 4))
         # if the plan is exhausted or was invalidated, re-solve from the current state
         if self.i >= len(self.plan):
-            plan, _ = verifier.solve(env.world.level, env.spec.objective, start=env.world.state)
+            plan, _ = verifier.solve(env.world.level, env.env_spec.objective, start=env.world.state)
             self.plan = plan or []
             self.i = 0
             if not self.plan:

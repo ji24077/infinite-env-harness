@@ -60,5 +60,5 @@ def run_episode(env: HarnessEnv, policy: Callable, max_steps: Optional[int] = No
 
 def _oracle_len(env: HarnessEnv):
     from harness import verifier
-    plan, _ = verifier.solve(env.world.level, env.spec.objective)
+    plan, _ = verifier.solve(env.world.level, env.env_spec.objective)
     return len(plan) if plan is not None else None

@@ -33,9 +33,9 @@ def _describe(env) -> str:
     w = env.world
     lvl = w.level
     ax, ay = w.state.agent
-    lines = [f"Grid {env.spec.width}x{env.spec.height}. Agent at ({ax},{ay}). "
+    lines = [f"Grid {env.env_spec.width}x{env.env_spec.height}. Agent at ({ax},{ay}). "
              f"Coordinates are (x=col from left, y=row from top). Moves: up=-y down=+y left=-x right=+x.",
-             f"Objective: {env.spec.objective_text}"]
+             f"Objective: {env.env_spec.objective_text}"]
     if lvl.exit:
         lines.append(f"Exit at {tuple(lvl.exit)}.")
     for cell, kid in lvl.keys.items():

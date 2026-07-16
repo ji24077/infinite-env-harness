@@ -59,13 +59,14 @@ def get_specs(online: bool):
             spec, vr, _ = generate(cmd)
             specs.append((name, spec.model_dump()))
     else:
+        from harness.generator import generate_offline
         for name in DEMO_KEYS:
             print(f"\n>>> loading cached spec (no API): {name}")
-            spec = load_cached(name)
-            vr = verify(spec)                      # real verification, streamed
+            spec_dict = load_cached(name)
+            _spec, vr, _ = generate_offline(spec_dict)   # re-verifies; raises if not vr.ok
             print("   ", vr.log_line().strip())
-            print("    objective (code):", predicate_program(EnvSpec(**spec)))
-            specs.append((name, spec))
+            print("    objective (code):", predicate_program(_spec))
+            specs.append((name, spec_dict))
     return specs
 
 

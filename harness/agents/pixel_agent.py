@@ -54,7 +54,7 @@ class PixelAgent:
             tools=[_MOVE_TOOL], tool_choice={"type": "tool", "name": "move"},
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": b64}},
-                {"type": "text", "text": f"Objective: {env.spec.objective_text}. Next action?"},
+                {"type": "text", "text": f"Objective: {env.env_spec.objective_text}. Next action?"},
             ]}],
         )
         for b in resp.content:

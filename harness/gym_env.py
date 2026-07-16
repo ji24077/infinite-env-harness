@@ -47,7 +47,8 @@ class HarnessEnv(gym.Env):
     def __init__(self, spec: EnvSpec, obs_mode: str = "state",
                  action_mode: str = "discrete", max_steps: Optional[int] = None):
         super().__init__()
-        self.spec = spec
+        self.env_spec = spec
+        self.render_mode = "rgb_array"          # gymnasium.Env.spec stays None (no shadowing)
         self.obs_mode = obs_mode
         self.action_mode = action_mode
         self.world = compile_spec(spec)
@@ -74,7 +75,7 @@ class HarnessEnv(gym.Env):
         return 4 + 1 + MAX_PREDS + 6  # agent, exit, held_frac, preds, nearest key/can/coin
 
     def _state_vec(self) -> np.ndarray:
-        w, h = self.spec.width, self.spec.height
+        w, h = self.env_spec.width, self.env_spec.height
         ax, ay = self.world.state.agent
         v = [ax / w * 2 - 1, ay / h * 2 - 1]
         if self.world.level.exit:
@@ -95,7 +96,7 @@ class HarnessEnv(gym.Env):
 
     def _nearest_vec(self, cells):
         ax, ay = self.world.state.agent
-        w, h = self.spec.width, self.spec.height
+        w, h = self.env_spec.width, self.env_spec.height
         best, bd = None, 1e9
         for (cx, cy) in cells:
             d = abs(ax - cx) + abs(ay - cy)

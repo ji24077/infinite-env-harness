@@ -124,8 +124,11 @@ def generate(command: str, model: str = DEFAULT_MODEL,
 
 
 def generate_offline(spec_dict: dict) -> Tuple[EnvSpec, VerifyResult, List[str]]:
-    """No-API path used by cached specs: just re-run the verifier so the demo still streams
-    real L1/L2/L3 logs without a key."""
+    """No-API path used by cached specs: re-run the verifier so the demo still streams real
+    L1/L2/L3 logs without a key — and enforce the same guarantee as the online path: never
+    return an environment that does not pass verify()."""
     spec = EnvSpec(**spec_dict)
     vr = verify(spec)
+    if not vr.ok:
+        raise RuntimeError(f"cached spec failed verification ({vr.stage}: {vr.reason})")
     return spec, vr, [vr.log_line()]
