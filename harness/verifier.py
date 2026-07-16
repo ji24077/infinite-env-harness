@@ -24,7 +24,10 @@ from pydantic import ValidationError
 from harness.dsl.schema import EnvSpec
 from harness.engine import gridlogic as G
 
-SEARCH_BUDGET = 400_000  # state-expansion cap; ample for 32x22 grids, guards blowups
+SEARCH_BUDGET = 400_000  # state-expansion cap. Sound + complete WITHIN this budget; beyond it
+                         # (many crates/collectibles blow up the state space) we conservatively
+                         # reject (never a false "solvable"). Ample for the lock-key/hazard/
+                         # single-push levels this harness targets.
 
 
 @dataclass
@@ -148,38 +151,39 @@ def physics_smoke_test(spec: EnvSpec, sim_steps: int = 240) -> tuple[bool, str]:
     space.gravity = (0, 900)  # screen-y-down
     ts = 32  # tile px, matches renderer
 
-    # static walls as segments
+    # static walls as offset polys (one per wall tile)
     static = space.static_body
     for y, row in enumerate(spec.tiles):
         for x, t in enumerate(row):
             if t == 1:
-                seg = pymunk.Poly.create_box(static, (ts, ts))
-                # emulate a static box by an offset poly
                 verts = [(x*ts, y*ts), (x*ts+ts, y*ts), (x*ts+ts, y*ts+ts), (x*ts, y*ts+ts)]
                 shape = pymunk.Poly(static, verts)
                 shape.elasticity = 0.1
                 shape.friction = 0.9
                 space.add(shape)
 
+    # Mirror the runtime physics model (world._build_physics): the ball is a free DYNAMIC
+    # body; crates are KINEMATIC bodies pinned to their grid cell. So L3 exercises the same
+    # dynamics the engine actually runs, not a fictional free-falling crate.
     dynamic_bodies = []
     for e in spec.entities:
-        if e.type in ("crate", "ball"):
-            x, y = e.pos
-            mass = 1.0
-            if e.type == "ball":
-                r = ts * 0.35
-                body = pymunk.Body(mass, pymunk.moment_for_circle(mass, 0, r))
-                body.position = (x*ts + ts/2, y*ts + ts/2)
-                shape = pymunk.Circle(body, r)
-            else:
-                size = (ts*0.8, ts*0.8)
-                body = pymunk.Body(mass, pymunk.moment_for_box(mass, size))
-                body.position = (x*ts + ts/2, y*ts + ts/2)
-                shape = pymunk.Poly.create_box(body, size)
-            shape.elasticity = 0.2
-            shape.friction = 0.8
-            space.add(body, shape)
-            dynamic_bodies.append(body)
+        if e.type not in ("crate", "ball"):
+            continue
+        x, y = e.pos
+        cx, cy = x*ts + ts/2, y*ts + ts/2
+        if e.type == "ball":
+            r = ts * 0.35
+            body = pymunk.Body(1.0, pymunk.moment_for_circle(1.0, 0, r))
+            body.position = (cx, cy)
+            shape = pymunk.Circle(body, r)
+            dynamic_bodies.append(body)          # only the ball is free / can explode
+        else:
+            body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+            body.position = (cx, cy)
+            shape = pymunk.Poly.create_box(body, (ts*0.8, ts*0.8))
+        shape.elasticity = 0.2
+        shape.friction = 0.8
+        space.add(body, shape)
 
     if not dynamic_bodies:
         return True, "no dynamic props (trivially stable)"
@@ -211,9 +215,21 @@ def verify(raw_spec: dict | EnvSpec) -> VerifyResult:
     level = G.build_level(spec)
     plan, expanded = solve(level, spec.objective)
     if plan is None:
+        # distinguish "proven unsolvable" (frontier exhausted) from "search budget hit"
+        exhausted = expanded > SEARCH_BUDGET
+        reason = (f"search budget exceeded ({expanded} states) — conservatively rejected"
+                  if exhausted else
+                  f"no path satisfies the objective (expanded {expanded} states)")
+        return VerifyResult(ok=False, stage="L2", reason=reason, expanded=expanded)
+    if len(plan) == 0:
         return VerifyResult(ok=False, stage="L2",
-                            reason=f"no path satisfies the objective (expanded {expanded} states)",
+                            reason="objective already satisfied at spawn (trivial / degenerate level)",
                             expanded=expanded)
+    if len(plan) > spec.time_limit:
+        # the runtime caps episodes at time_limit, so a longer-than-limit plan is unbeatable
+        # in the engine we ship — never certify it as solvable
+        return VerifyResult(ok=False, stage="L2", plan=plan, plan_len=len(plan), expanded=expanded,
+                            reason=f"shortest plan ({len(plan)}) exceeds time_limit ({spec.time_limit})")
     band, score = _difficulty(spec, len(plan))
 
     # L3 — physics stability

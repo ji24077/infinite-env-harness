@@ -49,14 +49,14 @@ def main():
     c = E.run_contrast(load_cached("occlusion_can"), use_vlm=use_vlm)
     E.render_contrast_strip(c, "assets/contrast.png")
     print(f"  scene '{c['spec_name']}': {c['n_frames']} frames")
-    print(f"  code-truth  : first pickup = frame {c['code_first_true']} (exact)")
-    print(f"  perception  : first pickup = frame {c['perc_first_true']}  "
-          f"(latency {c['latency_frames']} frames; wrong on {c['disagreements']} frames)")
+    print(f"  code-truth  : pickup exact at frame {c['code_first_true']}")
+    print(f"  perception  : disagrees with code truth on {c['disagreements']}/{c['n_frames']} frames "
+          f"(occlusion false positives)")
     if use_vlm:
-        print(f"  timing      : code ~{c['code_time_us']} us/frame vs VLM ~{c['perc_time_s']} s/frame + $ per call")
+        print(f"  timing      : code ~{c['code_time_us']} us (median) vs VLM ~{c['perc_time_s']} s/frame + $ per call")
     else:
-        print(f"  timing      : code {c['code_time_us']} us/frame vs pixel {c['perc_time_us']} us/frame "
-              f"({c['perc_time_us']/max(c['code_time_us'],1e-6):.0f}x)")
+        print(f"  timing      : code ~{c['code_time_us']} us vs pixel scan ~{c['perc_time_us']} us (medians, "
+              f"~{c['perc_time_us']/max(c['code_time_us'],1e-9):.0f}x)")
     print("  -> code-defined objectives are exact and ~free; pixel perception is fooled by occlusion.")
     print("  strip -> assets/contrast.png")
 

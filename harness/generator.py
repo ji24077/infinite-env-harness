@@ -83,7 +83,10 @@ def generate(command: str, model: str = DEFAULT_MODEL,
         )
         tu = _first_tool_use(resp.content)
         if tu is None:
+            # tool_choice forces a tool call, so this is a rare safety net; keep the message
+            # sequence valid (assistant turn before the next user turn)
             emit(f"[generator] attempt {attempt}: model did not call the tool; retrying")
+            messages.append({"role": "assistant", "content": resp.content})
             messages.append({"role": "user", "content": "Call emit_environment with a full environment."})
             continue
 

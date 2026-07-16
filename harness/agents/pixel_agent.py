@@ -27,8 +27,10 @@ _MOVE_TOOL = {
 }
 
 _SYS = ("You control the BLUE circle in a top-down 2D grid game. Reach the objective. "
-        "Green square = exit. Yellow = key. Brown = door/crate. Light cylinder = can. "
-        "Red circle = enemy. Faint numbers on the edges are x (top) and y (left) coordinates. "
+        "Green square = exit. Yellow KEY shape = key. Small yellow CIRCLE = coin. "
+        "Light cylinder = can (grab it by standing on or next to it). Brown door/crate. "
+        "Orange circle = ball (decor). Red circle = enemy. Grey = wall, red strip = hazard. "
+        "Faint numbers on the edges are x (top) and y (left) coordinates. "
         "up decreases y, down increases y, left decreases x, right increases x. Call move.")
 
 

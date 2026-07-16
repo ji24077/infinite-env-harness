@@ -1,9 +1,10 @@
 """
-Greedy heuristic policy — a deliberately myopic agent used as an API-free "regret" probe
-for ACCEL-style mutation curation (mutate.py). It walks toward the nearest objective-relevant
-cell and ignores ordering constraints (keys before doors, pushing crates), so it succeeds on
-simple layouts and fails on ones that require planning. oracle_success - greedy_success is a
-cheap proxy for learning difficulty / regret.
+Greedy heuristic policy — a deliberately myopic agent used as an API-free "regret" probe for
+ACCEL-inspired mutation curation (mutate.py). It steps toward the nearest objective-relevant
+cell with no multi-step planning: it will pick up keys/coins/cans on the way (and doors then
+auto-open), but it cannot plan a maneuver like pushing a crate from the correct side or routing
+around a hazard wall. So it clears simple navigation/pickup layouts and fails ones that require
+planning — and oracle_success - greedy_success is a cheap learnability/regret proxy.
 """
 
 from __future__ import annotations

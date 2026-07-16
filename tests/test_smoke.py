@@ -112,3 +112,67 @@ def test_generator_repairs_then_accepts(mock_anthropic):
     spec, vr, logs = generate("an open room with a can")
     assert vr.ok
     assert any("FAIL" in l for l in logs)  # the repair loop actually fired
+
+
+def test_generator_repair_exhaustion_raises(mock_anthropic):
+    from harness.generator import generate
+    bad = F.open_can(); bad["entities"][0]["pos"] = [0, 0]   # always L1-invalid
+    _FakeClient.QUEUE = [bad]                                 # every attempt returns the bad spec
+    with pytest.raises(RuntimeError):
+        generate("an open room with a can")
+
+
+# ── degenerate-level guards + controller mode ────────────────────────────────────
+
+def test_plan_exceeding_time_limit_is_rejected():
+    s = F.key_crate_return(); s["time_limit"] = 25          # plan is 32 > 25
+    r = verify(s)
+    assert not r.ok and "time_limit" in r.reason            # never certify an unbeatable level
+
+
+def test_trivial_objective_rejected():
+    s = F.open_can(); s["objective"] = [{"kind": "at_start"}]  # true at spawn
+    assert not verify(s).ok
+
+
+@pytest.mark.parametrize("mutate_spec,err", [
+    (lambda s: s.update(objective=[{"kind": "collected_all_coins"}]), "coin"),
+    (lambda s: s["entities"].append({"type": "exit", "id": "e2", "pos": [3, 3]}), "exit"),
+    (lambda s: s.update(objective=[{"kind": "item_at", "item": "can1", "cell": [3, 3]}]), "crate"),
+])
+def test_l1_meaning_guards(mutate_spec, err):
+    from pydantic import ValidationError
+    s = F.open_can(); mutate_spec(s)
+    with pytest.raises(ValidationError) as ex:
+        EnvSpec(**s)
+    assert err in str(ex.value)
+
+
+def test_controller_deadzone_is_noop():
+    import numpy as np
+    env = make_from_spec(F.open_can(), action_mode="controller")
+    env.reset()
+    before = tuple(env.world.state.agent)
+    env.step(np.zeros(6, dtype=np.float32))                  # no intent -> no move
+    assert tuple(env.world.state.agent) == before
+
+
+def test_contrast_timing_and_disagreements():
+    c = E.run_contrast(F.occlusion_can(), use_vlm=False)
+    assert c["code_time_us"] > 0 and c["perc_time_us"] > 0
+    assert c["disagreements"] >= 1
+
+
+def test_world_model_critic_flags_hallucinations():
+    from harness import critic
+    from harness.verifier import solve
+    lvl = G.build_level(EnvSpec(**F.key_crate_return()))
+    plan, _ = solve(lvl, EnvSpec(**F.key_crate_return()).objective)
+    real = critic.rollout_from_plan(lvl, plan)
+    assert critic.critique(lvl, real) == []            # a legal rollout has zero violations
+    # inject a teleport -> must be flagged
+    hall = list(real)
+    hall[3] = G.GridState(agent=(real[3].agent[0] + 5, real[3].agent[1]),
+                          held=real[3].held, crates=real[3].crates)
+    assert len(critic.critique(lvl, hall)) >= 1
+    assert critic.score(lvl, hall) < 1.0

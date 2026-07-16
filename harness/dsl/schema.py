@@ -118,23 +118,31 @@ class EnvSpec(BaseModel):
             if self.tiles[y][x] in (1, 2):
                 raise ValueError(f"entity {e.id} at {e.pos} sits on a wall/hazard tile")
 
+        # at most one exit (build_level keeps a single goal cell)
+        if len([e for e in self.entities if e.type == "exit"]) > 1:
+            raise ValueError("at most one exit entity is allowed")
+
         # door requires an existing key
         for e in self.entities:
             if e.type == "door":
                 if e.requires is None or id_to_type.get(e.requires) != "key":
                     raise ValueError(f"door {e.id} requires a valid key id, got {e.requires!r}")
 
-        # predicate items/cells must reference real entities
+        # predicate items/cells must reference real entities of the right kind
         for p in self.objective:
             if p.kind == "holding" and id_to_type.get(p.item or "") not in ("can", "key", "coin"):
                 raise ValueError(f"holding predicate references unknown item {p.item!r}")
             if p.kind == "item_at":
-                if p.item not in id_to_type:
-                    raise ValueError(f"item_at references unknown item {p.item!r}")
+                # only crate positions are tracked, so item_at must target a crate
+                if id_to_type.get(p.item or "") != "crate":
+                    raise ValueError(f"item_at must reference a crate, got {p.item!r}")
                 if p.cell is None:
                     raise ValueError("item_at predicate needs a cell")
             if p.kind == "reached_exit" and not any(e.type == "exit" for e in self.entities):
                 raise ValueError("reached_exit objective but no exit entity")
+            if p.kind == "collected_all_coins" and not any(e.type == "coin" for e in self.entities):
+                # otherwise the empty-set subset check is vacuously satisfied at spawn
+                raise ValueError("collected_all_coins objective but no coin entities")
         return self
 
     # ── convenience ──

@@ -104,14 +104,20 @@ def main():
     R.save_gif(out["frames"], gif, fps=7)
     print(f"    '{hero_spec['name']}': oracle solved in {out['steps']} steps -> {gif}")
 
-    # 3. TRAJECTORY DATASET SHARD (pixels + code-truth reward)
-    hr("3. ROLLOUT  ->  trace.jsonl  (pixels + code-defined reward = a training shard)")
+    # 3. TRAJECTORY DATASET SHARD (each step: a saved frame + its code-defined reward)
+    hr("3. ROLLOUT  ->  trace.jsonl + frames/  (pixel frame + code reward = a training shard)")
+    frame_dir = os.path.join(RUNS, f"{hero_name}_frames")
+    os.makedirs(frame_dir, exist_ok=True)
     trace_path = os.path.join(RUNS, f"{hero_name}_trace.jsonl")
     with open(trace_path, "w") as fh:
-        for row in out["trace"]:
+        for i, row in enumerate(out["trace"]):
+            fpath = os.path.join(frame_dir, f"step_{i+1:04d}.png")   # frame AFTER this action
+            out["frames"][i + 1].save(fpath)
+            row = {**row, "frame": os.path.relpath(fpath, RUNS)}      # pair pixels with reward
             fh.write(json.dumps(row) + "\n")
-    print(f"    wrote {len(out['trace'])} (action, reward, code_state) steps -> {trace_path}")
-    print(f"    e.g. final step: {json.dumps(out['trace'][-1])[:120]}...")
+    print(f"    wrote {len(out['trace'])} (frame, action, reward, code_state) rows -> {trace_path}")
+    print(f"    + {len(out['trace'])} index-aligned frames -> {frame_dir}/")
+    print(f"    e.g. final row: {json.dumps({k: v for k, v in {**out['trace'][-1]}.items() if k != 'code_state'})[:120]}...")
 
     # 4. MUTATION -> infinite verified variants
     hr(f"4. MUTATION  ->  {args.variants} NEW verified environments (ACCEL-curated, auto difficulty)")
@@ -136,21 +142,20 @@ def main():
     c = E.run_contrast(load_cached("occlusion_can"), use_vlm=False)
     strip = os.path.join("assets", "contrast.png")
     E.render_contrast_strip(c, strip)
+    ratio = c['perc_time_us'] / max(c['code_time_us'], 1e-9)
     print(f"    scene: '{c['spec_name']}'  ({c['n_frames']} frames)")
-    print(f"    code-truth  : pickup detected frame {c['code_first_true']} (exact), {c['code_time_us']} us/frame")
-    print(f"    pixel model : pickup detected frame {c['perc_first_true']}  "
-          f"({'EARLY by ' + str(abs(c['latency_frames'])) if c['latency_frames'] and c['latency_frames']<0 else c['latency_frames']} frames), "
-          f"{c['perc_time_us']} us/frame")
-    print(f"    -> pixel model wrong on {c['disagreements']} frames (occlusion). code truth: exact & "
-          f"{c['perc_time_us']/max(c['code_time_us'],1e-6):.0f}x faster.  strip -> {strip}")
-    print("    (add --vlm --live in evaluate.py to swap the pixel detector for a Claude VLM judge)")
+    print(f"    code-truth  : pickup exact at frame {c['code_first_true']}; predicate check ~{c['code_time_us']} us (median)")
+    print(f"    pixel model : disagrees with code truth on {c['disagreements']}/{c['n_frames']} frames "
+          f"(occlusion false positives); scan ~{c['perc_time_us']} us (median)")
+    print(f"    -> code truth is exact and ~{ratio:.0f}x cheaper than the pixel scan.  strip -> {strip}")
+    print("    (evaluate.py --vlm --live swaps the pixel stand-in for a real Claude VLM: ~1.7 s/frame + $)")
 
     # 7. RL LEARNABILITY CAPSTONE
     hr("7. RL LEARNABILITY  (these envs feed reinforcement learning)")
     if os.path.exists("assets/learnability.png"):
-        print("    assets/learnability.png — PPO reward on 'Coins & Hazard' climbs -0.7 -> 10.5")
-        print("    and the trained agent solves it at oracle-optimal length.")
-        print("    reproduce: uv run --extra rl python learnability.py")
+        print("    assets/learnability.png — PPO reward on 'Coins & Hazard' climbs from failing")
+        print("    (~ -1.3) to solving (~10.4), at oracle-optimal length.")
+        print("    reproduce exactly: uv run --extra rl python learnability.py")
     else:
         print("    (run `uv run --extra rl python learnability.py` to train PPO and plot the curve)")
 

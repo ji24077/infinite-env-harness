@@ -37,6 +37,9 @@ from harness import verifier
 DISCRETE_ACTIONS = ["up", "down", "left", "right", "interact"]
 MAX_PREDS = 4
 
+GAMMA = 0.99      # shaping discount; keep the learner's gamma equal to this (see learnability.py)
+STEP_COST = 0.01  # per-step cost; shaping is zeroed on a no-op so a wall-bump nets exactly -STEP_COST
+
 
 class HarnessEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"]}
@@ -128,13 +131,18 @@ class HarnessEnv(gym.Env):
 
         phi_before = self._phi()
         won_before = self.world.won
+        state_before = self.world.state
         self.world.step(act)
         phi_after = self._phi()
 
-        shaping = 0.99 * phi_after - phi_before          # potential-based (policy-invariant)
-        reward = -0.01 + shaping                          # small step cost + progress
+        # Potential-based shaping F = GAMMA*phi(s') - phi(s) (Ng et al.; policy-invariant when the
+        # learner's discount == GAMMA). On a genuine no-op (wall-bump / idle) the state is
+        # unchanged, so we zero the shaping — otherwise PBRS's (GAMMA-1)*phi term would refund
+        # part of the step cost and faintly reward bumping. Net for a no-op: exactly -STEP_COST.
+        shaping = 0.0 if self.world.state == state_before else (GAMMA * phi_after - phi_before)
+        reward = -STEP_COST + shaping
         terminated = self.world.done and self.world.won
-        truncated = self.world.done and not self.world.won
+        truncated = (self.world.done and not self.world.won) or (self.world.step_count >= self.max_steps)
         if self.world.won and not won_before:
             reward += 10.0                                # sparse code-truth terminal
 
@@ -144,11 +152,16 @@ class HarnessEnv(gym.Env):
         return self._obs(), float(reward), terminated, truncated, info
 
     def _decode_controller(self, a) -> str:
-        # map [fwd,back,left,right,mdx,mdy] onto the nearest grid move; heading follows mdx
+        """Adapter from the 6-input action shape [fwd,back,left,right,mouseDX,mouseDY] onto the
+        discrete grid. mouseDX rotates the rendered facing; mouseDY is reserved (unused in 2D).
+        This is the action-space SHAPE GI's policy emits, not full continuous kinematics — the
+        engine is grid-authoritative by design. Below the dead-zone, no move is taken."""
         fwd, back, left, right, mdx, mdy = [float(x) for x in a]
-        self.world.pose[2] += mdx * 0.3
-        idx = int(np.argmax([fwd, back, left, right]))
-        return ["up", "down", "left", "right"][idx]
+        self.world.pose[2] += mdx * 0.3                  # facing follows mouseDX (cosmetic)
+        moves = [fwd, back, left, right]
+        if max(moves) < 0.1:                             # dead-zone: no clear intent -> no-op
+            return "interact"
+        return ["up", "down", "left", "right"][int(np.argmax(moves))]
 
     def render(self):
         return np.array(R.to_pil(R.render_surface(self.world, tick=self.world.step_count)))

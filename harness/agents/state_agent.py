@@ -40,16 +40,16 @@ def _describe(env) -> str:
         lines.append(f"Exit at {tuple(lvl.exit)}.")
     for cell, kid in lvl.keys.items():
         if kid not in w.state.held:
-            lines.append(f"Key '{kid}' at {cell}.")
+            lines.append(f"Key '{kid}' at {cell} (pick up by stepping onto its cell; it auto-opens its door).")
     for cell, keyid in lvl.doors.items():
         state = "OPEN" if keyid in w.state.held else f"LOCKED(needs {keyid})"
         lines.append(f"Door at {cell} {state}.")
     for cid, cell in lvl.cans.items():
         if cid not in w.state.held:
-            lines.append(f"Can '{cid}' at {cell} (pick up by standing on or next to it).")
+            lines.append(f"Can '{cid}' at {cell} (pick up by standing on OR next to it).")
     for cell, coin in lvl.coins.items():
         if coin not in w.state.held:
-            lines.append(f"Coin '{coin}' at {cell}.")
+            lines.append(f"Coin '{coin}' at {cell} (pick up by stepping onto its cell).")
     for cid, x, y in w.state.crates:
         lines.append(f"Crate '{cid}' at ({x},{y}) (push by walking into it).")
     if w.state.held:

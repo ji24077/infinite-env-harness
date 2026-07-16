@@ -9,7 +9,8 @@ expressiveness we lose, we buy back as **verifiability**:
 
 - a **sound + complete BFS solver** over `(agent, inventory, crates)` decides solvability and
   returns a shortest **oracle plan** (`harness/verifier.py`);
-- the oracle plan's **length is the difficulty label** — the solver *is* the labeler;
+- the oracle plan's **length is the primary difficulty signal** (with light entity weighting) —
+  the solver *is* the labeler;
 - the oracle **cost-to-go field** is the reward-shaping potential — the solver *is* the reward
   source.
 
@@ -52,10 +53,10 @@ offline demo needs no API key: a search oracle is a perfectly good solvability w
 |---|---|---|
 | Foundation model generates environments **and rewards** in code | OMNI-EPIC (Faldor et al., ICLR 2025) | `generator.py` (constrained to a DSL) |
 | Self-verification + structured-feedback regeneration | Voyager (Wang et al. 2023), EnvGen (2024) | `generator.py` repair loop |
-| Minimax-**regret** curation of a mutation curriculum | PAIRED (Dennis 2020), **ACCEL** (Parker-Holder 2022) | `mutate.py` (oracle-vs-greedy regret proxy) |
+| Regret-inspired curation of a mutation curriculum (binary proxy, not the full minimax-regret estimator) | PAIRED (Dennis 2020), **ACCEL** (Parker-Holder 2022) | `mutate.py` (oracle-vs-greedy regret proxy) |
 | Generate → **solver-verify** solvability, filter unplayable | Sokoban/Mario PCG (Todd 2023, MarioGPT 2023) | `verifier.py` L2 BFS gate |
 | Standard RL env interface for a policy to mount on | Gymnasium / MiniGrid–Miniworld (Farama) | `gym_env.py` |
-| Complement to neural world models (which lack code truth) | DIAMOND / Genie-class | positioning; `eval.py` contrast |
+| Code-truth as a critic for neural world models (which lack code truth) | DIAMOND / Genie-class | `critic.py` (flags hallucinated dynamics); `eval.py` contrast |
 
 ## What we deliberately did NOT build
 

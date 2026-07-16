@@ -143,11 +143,11 @@ def push_delivery() -> dict:
     )
 
 
-# ── 6) contrast scene: an enemy patrol occludes the can at pickup time ───────────
+# ── 6) contrast scene: an enemy patrol occludes the can early (at spawn) ─────────
 def occlusion_can() -> dict:
-    """Used by the code-vs-pixel contrast. The enemy sprite crosses the can's cell, so a
-    pixel detector loses sight of the can (and mis-reports 'picked up') while code truth
-    stays exact until the agent actually grabs it."""
+    """Used by the code-vs-pixel contrast. The enemy sprite sits ON the can for the first few
+    frames (then moves away), so a pixel detector loses sight of the can early and FALSELY
+    reports 'picked up' while code truth stays exact until the agent actually grabs it."""
     W, H = 16, 9
     g = _room(W, H)
     return dict(

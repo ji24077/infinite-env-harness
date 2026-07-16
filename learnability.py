@@ -27,9 +27,10 @@ from harness.engine import renderer as R
 
 
 def main():
+    # defaults reproduce the committed assets/learnability.png exactly
     ap = argparse.ArgumentParser()
-    ap.add_argument("--env", default="key_crate_return", choices=list(F.ALL))
-    ap.add_argument("--steps", type=int, default=60_000)
+    ap.add_argument("--env", default="coins_hazard", choices=list(F.ALL))
+    ap.add_argument("--steps", type=int, default=200_000)
     ap.add_argument("--out", default="assets/learnability.png")
     args = ap.parse_args()
 
@@ -60,9 +61,10 @@ def main():
                 self.y.append(float(np.mean(rews)))
             return True
 
+    from harness.gym_env import GAMMA
     cb = Curve()
     model = PPO("MlpPolicy", env, verbose=0, n_steps=1024, batch_size=256,
-                gae_lambda=0.95, gamma=0.99, ent_coef=0.01, seed=0)
+                gae_lambda=0.95, gamma=GAMMA, ent_coef=0.01, seed=0)  # gamma == shaping GAMMA
     model.learn(total_timesteps=args.steps, callback=cb)
 
     # plot reward curve

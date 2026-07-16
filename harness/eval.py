@@ -90,15 +90,27 @@ def format_scorecard(sc: dict) -> str:
 # ── 2) code-vs-pixel contrast ────────────────────────────────────────────────────
 
 def pixel_can_visible(frame: Image.Image, cell: Tuple[int, int], tile: int = TILE) -> bool:
-    """Deterministic pixel detector: are 'can'-colored (light) pixels present in the can's
-    tile region? Fooled by occlusion — exactly the failure GI cites for pixel perception."""
+    """A simple offline pixel-presence check: are 'can'-colored (light) pixels present at the
+    can's location? It is a deterministic, no-API STAND-IN for a perception model (the real
+    thing is a Claude VLM via --vlm --live). Like any pixel perceiver it is fooled by occlusion,
+    which is the point. The count threshold sits between an occluded can (~24 px peeking) and a
+    clear can (~156 px)."""
     x, y = cell
     box = (x * tile, y * tile, x * tile + tile, y * tile + tile)
-    arr = np.asarray(frame.crop(box)).astype(int)
+    arr = np.asarray(frame.crop(box))
     light = (arr[:, :, 0] > 180) & (arr[:, :, 1] > 190) & (arr[:, :, 2] > 200)
-    # threshold set between an occluded can (~24 px peeking) and a clear can (~156 px):
-    # occlusion drops the count into "not visible", so the detector mis-reads a pickup.
     return int(light.sum()) > 80
+
+
+def _bench_us(fn, iters: int = 2000) -> float:
+    """Median microseconds per call, after warmup — a stable, defensible timing (not a single
+    cold perf_counter sample)."""
+    import statistics
+    fn(); fn()
+    samples = []
+    for _ in range(iters):
+        t = time.perf_counter(); fn(); samples.append(time.perf_counter() - t)
+    return round(statistics.median(samples) * 1e6, 3)
 
 
 def _vlm_judge_frame(frame: Image.Image, question: str, model: str) -> Tuple[bool, float]:
@@ -125,7 +137,10 @@ def run_contrast(spec: dict, use_vlm: bool = False, model: str = "claude-sonnet-
     model detecting 'the can has been picked up'. Returns a timeline + summary stats."""
     if not isinstance(spec, EnvSpec):
         spec = EnvSpec(**spec)
-    can = spec.by_type("can")[0]
+    cans = spec.by_type("can")
+    if not cans:
+        raise ValueError("run_contrast needs a spec with a 'can' entity")
+    can = cans[0]
     can_cell = tuple(can.pos)
 
     env = make_from_spec(spec)
@@ -133,34 +148,38 @@ def run_contrast(spec: dict, use_vlm: bool = False, model: str = "claude-sonnet-
     frames = out["frames"]
     trace = out["trace"]
 
+    # Per-frame detection. Code truth reads the (precomputed) engine state — a predicate
+    # membership check; perception must read the pixels. Both answer "has the can been picked up".
     timeline = []
-    code_us, per_perc = [], []
     for i, fr in enumerate(frames):
-        # code truth: O(1) dict lookup of the predicate — frame-exact
-        t0 = time.perf_counter()
         cs = trace[i - 1]["code_state"] if i > 0 else {"held": []}
         code_picked = can.id in cs.get("held", [])
-        code_us.append((time.perf_counter() - t0) * 1e6)
-
-        # perception: pixel detector (offline) or VLM (live)
         if use_vlm:
-            yes, dt = _vlm_judge_frame(fr, f"Has the small can been picked up (is it no longer on the table)?", model)
-            perc_picked = yes
-            per_perc.append(dt)
+            perc_picked, _ = _vlm_judge_frame(
+                fr, "Has the small can been picked up (is it no longer on the table)?", model)
         else:
-            t1 = time.perf_counter()
-            visible = pixel_can_visible(fr, can_cell)
-            per_perc.append((time.perf_counter() - t1) * 1e6)
-            perc_picked = not visible
+            perc_picked = not pixel_can_visible(fr, can_cell)
         timeline.append({"frame": i, "code": code_picked, "perc": perc_picked})
 
     code_first = next((t["frame"] for t in timeline if t["code"]), None)
     perc_first = next((t["frame"] for t in timeline if t["perc"]), None)
     disagreements = sum(1 for t in timeline if t["code"] != t["perc"])
 
+    # Defensible timing: warmed-up median over many iterations on a representative frame.
+    rep = frames[max(0, (code_first or 1) - 1)]
+    rep_state = trace[max(0, (code_first or 1) - 2)]["code_state"] if len(trace) > 1 else {"held": []}
+    code_us = _bench_us(lambda: can.id in rep_state.get("held", []))
+    if use_vlm:
+        # VLM timing comes from real calls; re-time a few for a median seconds/frame
+        import statistics
+        secs = [_vlm_judge_frame(rep, "Has the small can been picked up?", model)[1] for _ in range(3)]
+        perc_us, perc_s = None, round(statistics.median(secs), 3)
+    else:
+        perc_us, perc_s = _bench_us(lambda: pixel_can_visible(rep, can_cell)), None
+
     return {
         "spec_name": spec.name,
-        "can_cell": can_cell,
+        "can_cell": list(can_cell),
         "n_frames": len(frames),
         "timeline": timeline,
         "code_first_true": code_first,
@@ -169,10 +188,10 @@ def run_contrast(spec: dict, use_vlm: bool = False, model: str = "claude-sonnet-
                            else perc_first - code_first),
         "disagreements": disagreements,
         "mode": "vlm" if use_vlm else "pixel",
-        "code_time_us": round(float(np.mean(code_us)), 3),
-        "perc_time_us": round(float(np.mean(per_perc)), 3) if not use_vlm else None,
-        "perc_time_s": round(float(np.mean(per_perc)), 3) if use_vlm else None,
-        "frames": frames,   # kept for strip rendering; drop before JSON dump
+        "code_time_us": code_us,
+        "perc_time_us": perc_us,   # None in vlm mode
+        "perc_time_s": perc_s,     # None in pixel mode
+        "frames": frames,          # kept for strip rendering; drop before JSON dump
     }
 
 
@@ -185,7 +204,7 @@ def render_contrast_strip(contrast: dict, path: str) -> None:
     H = top + 120
     img = Image.new("RGB", (W, H), (16, 16, 22))
     d = ImageDraw.Draw(img)
-    d.text((8, 6), f"code-truth vs {contrast['mode']}-perception  —  "
+    d.text((8, 6), f"code-truth vs {contrast['mode']}-perception  |  "
                    f"'{contrast['spec_name']}'", fill=(210, 212, 228))
     row_code, row_perc = top + 16, top + 66
     d.text((4, row_code - 14), "code", fill=(150, 154, 174))
@@ -198,14 +217,8 @@ def render_contrast_strip(contrast: dict, path: str) -> None:
         d.rectangle([x, row_perc, x + cw - 2, row_perc + 24], fill=perc_c)
         if t["code"] != t["perc"]:
             d.rectangle([x, row_perc, x + cw - 2, row_perc + 24], outline=(235, 70, 70), width=2)
-    lat = contrast["latency_frames"]
-    if lat is None:
-        msg = f"perception disagreed with code truth on {contrast['disagreements']} frames"
-    elif lat < 0:
-        msg = (f"{contrast['mode']} model mis-fired the pickup {abs(lat)} frames EARLY "
-               f"(occlusion); wrong on {contrast['disagreements']} frames. code truth: exact.")
-    else:
-        msg = (f"{contrast['mode']} model detected the pickup {lat} frames late; "
-               f"wrong on {contrast['disagreements']} frames. code truth: exact.")
+    dis = contrast["disagreements"]
+    msg = (f"{contrast['mode']} perception disagrees with code truth on {dis}/{len(tl)} frames "
+           f"(occlusion false positives); code truth: exact.")
     d.text((8, H - 26), msg, fill=(235, 120, 90))
     img.save(path)

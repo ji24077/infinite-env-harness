@@ -19,8 +19,9 @@ policy, with **code-defined ground truth** for objectives and rewards — their 
 milestone is *"generate simulation worlds to train other agents."* This harness is that factory,
 in 2D. Where **OMNI-EPIC** generates environments as *arbitrary code*, we constrain generation to
 a **typed DSL**, which buys what arbitrary code can't: every environment is run through a solver
-that **proves it is solvable**, extracts an **oracle plan**, and **auto-labels difficulty** from
-that plan's length. Where a **neural world model (Genie-class)** can't give you code-defined truth,
+that **proves it is solvable** (within a search budget), extracts an **oracle plan**, and
+**auto-labels difficulty** from that plan's length (plus light entity weighting). Where a **neural
+world model (Genie-class)** can't give you code-defined truth,
 this supplies exactly that: objectives are executable predicates checked against engine state, not
 a VLM guessing at pixels. The agent that "plays" is not the product — it is a **solvability
 oracle**. The product is the pipeline: **verified environments × code rewards × a standard RL
@@ -53,35 +54,60 @@ live from text. No `uv`? See [requirements.txt](requirements.txt) (`pip`, Python
 
 GI's own rationale — *"code-level objectives are far more reliable than a VLM checking pixels"* —
 made measurable. On the **same** saved frames, a frame-exact code predicate is compared against a
-perception model detecting *"the can has been picked up."* An enemy patrol occludes the can:
+perception model answering *"has the can been picked up?"* An enemy patrol sits on the can early,
+occluding it:
 
 ![contrast](assets/contrast.png)
 
-The pixel model **mis-fires the pickup 10 frames early** (occlusion looks like removal) and is
-**~200× slower**; the code predicate is exact and ~free. Offline it uses a deterministic pixel
-detector (reproducible, no API); `uv run python evaluate.py --vlm --live` swaps in a Claude VLM
-judge on the same frames — *verified live:* the VLM runs **~1.7 s/frame + $/call** and was **wrong
-on 5 of 15 frames** (never cleanly registering the pickup), vs code truth exact at **~3 µs/frame**.
-*This is the piece that turns GI's premise into a number.*
+Code truth is exact — the pickup event fires the instant engine state changes. The perception
+model **disagrees on 6 of 15 frames** (occlusion false positives), and the code check is a
+microsecond predicate read versus a per-frame image scan (`uv run demo.py --offline` prints your
+machine's exact medians). The offline detector is a deterministic, no-API **stand-in** for a
+perception model; `uv run python evaluate.py --vlm --live` swaps in a **real Claude VLM** judge on
+the same frames — in one observed live run it took **~1.7 s/frame + $ per call** and disagreed on
+5 of 15 frames. *This is the piece that turns GI's premise into a number.*
 
 ## These environments feed RL
 
 ![learnability](assets/learnability.png)
 
-A small off-the-shelf PPO (stable-baselines3) mounted on one generated env: mean reward climbs
-**−0.7 → 10.5** and the trained agent solves it at **oracle-optimal** length. The reward it climbs
-is potential shaping sourced from the oracle cost-to-go plus the sparse code-truth terminal — *the
-same solver that proves solvability supplies the training signal.* (`uv run --extra rl python
-learnability.py`.)
+A small off-the-shelf PPO (stable-baselines3) mounted on one generated env (`coins_hazard`): mean
+reward climbs **≈ −1.3 → 10.4** and the trained agent solves it at **oracle-optimal** length. The
+reward it climbs is potential-based shaping sourced from the oracle cost-to-go plus the sparse
+code-truth terminal — *the same solver that proves solvability supplies the training signal.* The
+default `uv run --extra rl python learnability.py` reproduces this exact figure.
+
+## Code-truth as a world-model critic (for DIAMOND-class models)
+
+The founders authored **DIAMOND**, a diffusion world model. World models hallucinate: an object
+teleports, a wall is walked through, an item is "held" that was never reached. A VLM or learned
+reward model judging pixels cannot reliably catch this — but the code-defined environment can,
+exactly and for free. The same `gridlogic` that verifies solvability doubles as a **dynamics
+critic**: given a rollout (e.g. decoded from a world model's predicted frames), it asks of every
+transition *"is there a single legal action that produces it?"* and flags the ones that break the
+rules. `uv run python -m harness.critic`:
+
+```
+FAITHFUL rollout (33 states): consistency = 100%, violations = 0
+HALLUCINATED rollout:         consistency =  88%, violations = 4
+  - step 3: agent teleported (2,8)->(6,8) (>1 cell in one step)
+  - step 6: held ['can1'] appeared without a grounded pickup
+  ...
+```
+
+This reframes the code-vs-pixel result from "a non-neural alternative" into **an automated critic
+that scores neural world-model dreams for hallucinated dynamics** — infinite verified environments
+as world-model *training data*, code-truth + oracle cost-to-go as the *critic* — directly in the
+founders' wheelhouse.
 
 ## How it maps to your research goals
 
 | GI use case | This harness |
 |---|---|
-| **Post-training environments** — diverse, at scale | DSL generation + **mutation engine**: infinitely many environments, each re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py)) |
+| **Post-training environments** — diverse, at scale | Unbounded diversity via LLM generation; the **mutation engine** expands each base into a curated family of new environments, every one re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py)) |
 | **Code-level verifiable objectives** | Objectives are an **executable predicate program** checked frame-exact against engine state ([`engine/gridlogic.py`](harness/engine/gridlogic.py)) — never a VLM on pixels |
 | **Reward-model training** (code truth → pixels) | Every rollout emits `trace.jsonl` of **(pixel frame, code-truth reward)** pairs; the code-vs-pixel contrast quantifies the gap a reward model would close |
-| **2D → 3D transfer** | The Gymnasium `Env` exposes GI's exact **6-number controller contract** `[fwd,back,left,right,mouseDX,mouseDY]` (`action_mode="controller"`) and dual `obs_mode="state"\|"pixels"` — swap the engine, keep the interface |
+| **2D → 3D transfer** | The Gymnasium `Env` exposes the **6-input action shape** GI's policy emits `[fwd,back,left,right,mouseDX,mouseDY]` (`action_mode="controller"`, a grid adapter — mouseDX drives facing, mouseDY reserved) and dual `obs_mode="state"\|"pixels"` — same interface, swap the engine |
 
 ## Architecture
 
@@ -94,7 +120,7 @@ learnability.py`.)
                                                   ▼
                                         ORACLE PLAN, reused 3×:
                                         (a) L3 replay witness
-                                        (b) difficulty label  (plan length)
+                                        (b) difficulty label  (plan length + weighting)
                                         (c) reward shaping     (cost-to-go)
 ```
 
@@ -118,14 +144,16 @@ physics-engine credential without physics on the critical path.
 
 ## Limitations & the 3D path
 
-- The L2 solver is sound+complete over `(agent, inventory, crates)`; we keep mechanics where BFS
+- The L2 solver is sound + complete over `(agent, inventory, crates)` **within a 400k-state search
+  budget**; past it we conservatively reject (never a false "solvable"). We keep mechanics where BFS
   stays cheap (lock-key, hazards, single-cell pushes) and deliberately avoid PSPACE traps.
 - Physics is decorative by design; game logic is discrete. That is a feature (deterministic
   verification), and the boundary is explicit.
 - **3D:** the observation/action/reward *interface* is the transfer unit. The tile IR generalizes
-  to a scene-graph/voxel IR; generator, verifier, difficulty labeling and the reward-shaping
-  machinery carry over unchanged. Farama's MiniGrid→Miniworld share one Gymnasium API — the same
-  compile-target swap this harness is built around.
+  to a scene-graph/voxel IR; the generator, difficulty labeling, reward-shaping machinery and the
+  Gymnasium interface carry over — but the **discrete BFS solvability proof must be replaced** for a
+  continuous 3D world (a sampling-based planner / reachability check). Farama's MiniGrid→Miniworld
+  share one Gymnasium API — the same compile-target swap this harness is built around.
 
 ## Repo layout
 
@@ -141,8 +169,9 @@ harness/
   engine/          gridlogic (semantics), world (hybrid + pymunk), renderer
   gym_env.py       Gymnasium Env (dual obs, controller contract, shaped reward)
   agents/          scripted oracle, greedy probe, Claude state/pixel agents
-  mutate.py        ACCEL-style curated mutation
+  mutate.py        ACCEL-inspired curated mutation (binary regret proxy)
   eval.py          scorecard + contrast
+  critic.py        world-model dynamics critic (flags hallucinated transitions)
   fixtures.py      canonical environments (offline cache + tests)
 specs/             pre-verified environments (JSON) for --offline
 assets/            README media (regenerate: uv run python scripts/build_assets.py)

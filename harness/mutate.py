@@ -6,10 +6,12 @@ This is the "infinite" in infinite generation without another LLM call: structur
 re-verification, so every survivor is still provably solvable and gets a fresh difficulty
 label from its oracle-plan length.
 
-ACCEL-style curation (Parker-Holder et al. 2022): instead of keeping random survivors, we
-prefer high-REGRET variants — ones the optimal oracle solves but a myopic greedy agent fails.
-Regret is approximated API-free as (oracle_success - greedy_success), a proxy for how much
-learnable signal the level carries. Falls back to difficulty spread when regret is flat.
+ACCEL-INSPIRED curation (Parker-Holder et al. 2022): instead of keeping random survivors, we
+prefer higher-regret variants — ones the optimal oracle solves but a myopic greedy agent fails.
+This is a cheap, API-free BINARY regret PROXY: regret = oracle_success(=1 for any re-verified
+variant) - greedy_success ∈ {0, 1}. It is NOT the full minimax-regret estimator of PAIRED/ACCEL
+(no antagonist, no per-state regret) — just a learnability signal that correlates with "needs
+planning". Ties break on oracle-plan length (difficulty).
 """
 
 from __future__ import annotations
@@ -57,11 +59,15 @@ def _mutations(spec: dict, rng) -> List[Tuple[str, dict]]:
         for me in m["entities"]:
             if me["id"] == e["id"]:
                 me["pos"] = [int(nx), int(ny)]
-                # keep can+table together
-                if me["type"] == "can" and me.get("on"):
-                    for t in m["entities"]:
-                        if t["id"] == me["on"]:
-                            t["pos"] = [int(nx), int(ny)]
+        # keep a can and its table co-located regardless of which one moved
+        if e["type"] == "can" and e.get("on"):
+            for t in m["entities"]:
+                if t["id"] == e["on"]:
+                    t["pos"] = [int(nx), int(ny)]
+        elif e["type"] == "table":
+            for c in m["entities"]:
+                if c["type"] == "can" and c.get("on") == e["id"]:
+                    c["pos"] = [int(nx), int(ny)]
         out.append((f"move {e['type']} {e['id']}", m))
 
     # add an interior wall block
