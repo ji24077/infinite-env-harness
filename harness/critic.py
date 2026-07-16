@@ -78,6 +78,24 @@ def score(level: G.Level, states: List[G.GridState]) -> float:
     return round(1.0 - len(critique(level, states)) / trans, 3)
 
 
+def forge_hallucination(level: G.Level, real: List[G.GridState]) -> List[G.GridState]:
+    """Corrupt a faithful rollout the way a neural world model might dream — a DIVERSE set of
+    physically-impossible transitions (teleport, wall phasing, ungrounded pickup, illegal crate
+    move). Every one is invisible to a per-frame VLM but caught exactly by the critic."""
+    d = list(real)
+    if len(d) > 8:
+        ax, ay = d[3].agent
+        d[4] = G.GridState(agent=(ax + 4, ay), held=d[3].held, crates=d[3].crates)      # teleport
+        # ungrounded pickup: the can is suddenly "held" with no approach
+        d[7] = G.GridState(agent=d[6].agent, held=d[6].held | {"can1"}, crates=d[6].crates)
+        # illegal crate move: a crate jumps with no push
+        if d[8].crates:
+            cid, cx, cy = d[8].crates[0]
+            moved = tuple(sorted([(cid, cx, cy + 3)] + list(d[8].crates[1:])))
+            d[9] = G.GridState(agent=d[8].agent, held=d[8].held, crates=moved)
+    return d
+
+
 # ── illustration ──────────────────────────────────────────────────────────────
 
 def _demo():
@@ -94,18 +112,10 @@ def _demo():
     print(f"  FAITHFUL rollout ({len(real)} states): consistency = {score(level, real):.0%}, "
           f"violations = {len(critique(level, real))}")
 
-    # forge a 'hallucinated' rollout a world model might dream: two illegal transitions
-    dreamed = list(real)
-    # (a) teleport the agent 4 cells through a wall
-    tp = G.GridState(agent=(real[3].agent[0] + 4, real[3].agent[1]), held=real[3].held, crates=real[3].crates)
-    dreamed[4] = tp
-    # (b) an ungrounded pickup: the can is suddenly held with no approach
-    hall = G.GridState(agent=dreamed[6].agent, held=dreamed[6].held | {"can1"}, crates=dreamed[6].crates)
-    dreamed[7] = hall
-
+    dreamed = forge_hallucination(level, real)
     viols = critique(level, dreamed)
     print(f"  HALLUCINATED rollout: consistency = {score(level, dreamed):.0%}, "
-          f"violations = {len(viols)} (a VLM/reward-model on pixels would likely miss these):")
+          f"violations = {len(viols)} (a VLM / pixel reward-model would likely miss these):")
     for v in viols:
         print(f"    - step {v.step}: {v.reason}")
 

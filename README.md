@@ -41,31 +41,47 @@ live from text. No `uv`? See [requirements.txt](requirements.txt) (`pip`, Python
 ## What the one command shows
 
 ```
-1. TEXT COMMAND   -> environment, streamed L1 schema / L2 solvable / L3 physics logs
-2. ORACLE PLAN    -> replay GIF                (proof the environment is beatable)
-3. ROLLOUT        -> trace.jsonl              (pixels + code reward = a training shard)
-4. MUTATION       -> 10 NEW verified envs      (ACCEL-curated, auto difficulty labels)
-5. EVAL SCORECARD -> success / efficiency, difficulty-stratified
-6. CODE vs PIXEL  -> the headline (below)
-7. RL LEARNABILITY-> PPO reward curve          (the environments feed RL)
+1. TEXT COMMAND    -> environment, streamed L1 schema / L2 solvable / L3 physics logs
+2. ORACLE PLAN     -> replay GIF               (proof the environment is beatable)
+3. ROLLOUT         -> trace.jsonl + frames/    (pixel frame + code reward = a training shard)
+4. MUTATION        -> 10 NEW verified envs      (ACCEL-inspired, auto difficulty labels)
+5. EVAL SCORECARD  -> success / efficiency, difficulty-stratified
+6. WORLD-MODEL CRITIC -> flags hallucinated dynamics   (the headline, below)
+7. CODE vs PIXEL   -> supporting illustrative micro-benchmark
+8. RL LEARNABILITY -> PPO reward curve          (the environments feed RL)
 ```
 
-## The headline: code-truth vs pixel perception
+## Headline: code-truth as a world-model critic
 
-GI's own rationale — *"code-level objectives are far more reliable than a VLM checking pixels"* —
-made measurable. On the **same** saved frames, a frame-exact code predicate is compared against a
-perception model answering *"has the can been picked up?"* An enemy patrol sits on the can early,
-occluding it:
+The founders authored **DIAMOND**, a diffusion world model. World models hallucinate — an object
+teleports, a wall is walked through, an item is "held" that was never reached. A VLM or learned
+reward model judging pixels cannot reliably catch this; the code-defined environment can, exactly
+and for free. The same `gridlogic` that verifies solvability doubles as a **dynamics critic**:
+given a rollout (e.g. decoded from a world model's predicted frames), it asks of every transition
+*"is there a single legal action that produces it?"* and flags the ones that break the rules.
+
+![critic](assets/critic.png)
+
+`uv run python -m harness.critic` scores a faithful rollout at **100%** consistency and a
+hallucinated one at **81%**, flagging every illegal transition — teleports, ungrounded pickups,
+no-push crate moves — the exact hallucinations a per-frame VLM or pixel reward-model would miss.
+Reframed: **infinite verified environments as world-model training data, code-truth + oracle
+cost-to-go as an automated critic** for the dreams. This is a genuine capability (arbitrary
+rule-checking), not a constructed demo — and it lands directly in the founders' wheelhouse.
+
+## Supporting: code-truth vs pixel perception (an illustrative micro-benchmark)
+
+A smaller, honest illustration of the same principle on **one deliberately constructed** occlusion
+scene (an enemy is placed on the can). On the same saved frames, a frame-exact code predicate is
+compared against a perception model answering *"has the can been picked up?"*:
 
 ![contrast](assets/contrast.png)
 
-Code truth is exact — the pickup event fires the instant engine state changes. The perception
-model **disagrees on 6 of 15 frames** (occlusion false positives), and the code check is a
-microsecond predicate read versus a per-frame image scan (`uv run demo.py --offline` prints your
-machine's exact medians). The offline detector is a deterministic, no-API **stand-in** for a
-perception model; `uv run python evaluate.py --vlm --live` swaps in a **real Claude VLM** judge on
-the same frames — in one observed live run it took **~1.7 s/frame + $ per call** and disagreed on
-5 of 15 frames. *This is the piece that turns GI's premise into a number.*
+Code truth is exact; the offline pixel **stand-in** detector disagrees on 6 of 15 frames (occlusion
+false positives), at a per-frame image scan vs a microsecond predicate read (`uv run demo.py
+--offline` prints the medians). `uv run python evaluate.py --vlm --live` swaps in a **real Claude
+VLM** — in one observed run it took ~1.7 s/frame + $ per call. Treat this as an illustration, not a
+general VLM benchmark; the critic above is the load-bearing result.
 
 ## These environments feed RL
 
@@ -76,29 +92,6 @@ reward climbs **≈ −1.3 → 10.4** and the trained agent solves it at **oracl
 reward it climbs is potential-based shaping sourced from the oracle cost-to-go plus the sparse
 code-truth terminal — *the same solver that proves solvability supplies the training signal.* The
 default `uv run --extra rl python learnability.py` reproduces this exact figure.
-
-## Code-truth as a world-model critic (for DIAMOND-class models)
-
-The founders authored **DIAMOND**, a diffusion world model. World models hallucinate: an object
-teleports, a wall is walked through, an item is "held" that was never reached. A VLM or learned
-reward model judging pixels cannot reliably catch this — but the code-defined environment can,
-exactly and for free. The same `gridlogic` that verifies solvability doubles as a **dynamics
-critic**: given a rollout (e.g. decoded from a world model's predicted frames), it asks of every
-transition *"is there a single legal action that produces it?"* and flags the ones that break the
-rules. `uv run python -m harness.critic`:
-
-```
-FAITHFUL rollout (33 states): consistency = 100%, violations = 0
-HALLUCINATED rollout:         consistency =  88%, violations = 4
-  - step 3: agent teleported (2,8)->(6,8) (>1 cell in one step)
-  - step 6: held ['can1'] appeared without a grounded pickup
-  ...
-```
-
-This reframes the code-vs-pixel result from "a non-neural alternative" into **an automated critic
-that scores neural world-model dreams for hallucinated dynamics** — infinite verified environments
-as world-model *training data*, code-truth + oracle cost-to-go as the *critic* — directly in the
-founders' wheelhouse.
 
 ## How it maps to your research goals
 

@@ -8,11 +8,12 @@ demo.py — the whole harness in one command (~2 min).
 It walks the full factory pipeline:
   1. text command  -> generated + L1/L2/L3-verified environment (streamed logs)
   2. oracle plan   -> replay GIF (proof the environment is beatable)
-  3. rollout       -> trace.jsonl (pixels + code-truth reward = a training dataset shard)
-  4. mutation      -> 10 new verified environments, ACCEL-curated, auto difficulty labels
+  3. rollout       -> trace.jsonl + frames/ (pixel frame + code-truth reward = a training shard)
+  4. mutation      -> 10 new verified environments, ACCEL-inspired, auto difficulty labels
   5. scorecard     -> success / efficiency, difficulty-stratified (the eval use case)
-  6. code vs pixel -> the headline: frame-exact code truth vs a pixel model fooled by occlusion
-  7. RL capstone   -> pointer to the PPO reward curve (env feeds RL)
+  6. world-model critic -> the headline: code-truth flags hallucinated dynamics a VLM would miss
+  7. code vs pixel -> supporting illustrative micro-benchmark on a constructed occlusion scene
+  8. RL capstone   -> pointer to the PPO reward curve (env feeds RL)
 """
 
 from __future__ import annotations
@@ -137,21 +138,38 @@ def main():
     sc = E.scorecard(all_specs, epsilon=0.12, seed=1)
     print(E.format_scorecard(sc))
 
-    # 6. CODE vs PIXEL CONTRAST (headline)
-    hr("6. CODE-TRUTH vs PIXEL PERCEPTION  (the headline: why code-level objectives win)")
+    # 6. WORLD-MODEL CRITIC (headline)
+    hr("6. WORLD-MODEL CRITIC  (headline: code-truth flags hallucinated dynamics)")
+    from harness import critic as CR
+    from harness.verifier import solve
+    from harness.engine import gridlogic as _G
+    cspec = EnvSpec(**load_cached("key_crate_return"))
+    clevel = _G.build_level(cspec)
+    cplan, _ = solve(clevel, cspec.objective)
+    real = CR.rollout_from_plan(clevel, cplan)
+    dreamed = CR.forge_hallucination(clevel, real)
+    vio = CR.critique(clevel, dreamed)
+    print(f"    faithful rollout    : consistency {CR.score(clevel, real):.0%}  (0 violations)")
+    print(f"    hallucinated rollout: consistency {CR.score(clevel, dreamed):.0%}  ({len(vio)} illegal transitions flagged)")
+    for v in vio[:4]:
+        print(f"      - step {v.step}: {v.reason}")
+    print("    -> code-truth catches teleports / ungrounded pickups a pixel judge would miss.  see assets/critic.png")
+
+    # 7. CODE vs PIXEL CONTRAST (supporting illustration)
+    hr("7. CODE-TRUTH vs PIXEL PERCEPTION  (supporting: illustrative micro-benchmark)")
     c = E.run_contrast(load_cached("occlusion_can"), use_vlm=False)
     strip = os.path.join("assets", "contrast.png")
     E.render_contrast_strip(c, strip)
     ratio = c['perc_time_us'] / max(c['code_time_us'], 1e-9)
-    print(f"    scene: '{c['spec_name']}'  ({c['n_frames']} frames)")
+    print(f"    scene (constructed): '{c['spec_name']}'  ({c['n_frames']} frames)")
     print(f"    code-truth  : pickup exact at frame {c['code_first_true']}; predicate check ~{c['code_time_us']} us (median)")
-    print(f"    pixel model : disagrees with code truth on {c['disagreements']}/{c['n_frames']} frames "
+    print(f"    pixel stand-in: disagrees with code truth on {c['disagreements']}/{c['n_frames']} frames "
           f"(occlusion false positives); scan ~{c['perc_time_us']} us (median)")
     print(f"    -> code truth is exact and ~{ratio:.0f}x cheaper than the pixel scan.  strip -> {strip}")
     print("    (evaluate.py --vlm --live swaps the pixel stand-in for a real Claude VLM: ~1.7 s/frame + $)")
 
-    # 7. RL LEARNABILITY CAPSTONE
-    hr("7. RL LEARNABILITY  (these envs feed reinforcement learning)")
+    # 8. RL LEARNABILITY CAPSTONE
+    hr("8. RL LEARNABILITY  (these envs feed reinforcement learning)")
     if os.path.exists("assets/learnability.png"):
         print("    assets/learnability.png — PPO reward on 'Coins & Hazard' climbs from failing")
         print("    (~ -1.3) to solving (~10.4), at oracle-optimal length.")
@@ -161,8 +179,8 @@ def main():
 
     print("\n" + "=" * 72)
     print("  DONE. Generated + verified environments, an oracle-solved GIF, a training-shard")
-    print("  trace, 10 curated variants, an eval scorecard, the code-vs-pixel proof, and a")
-    print("  PPO learnability curve — the environment factory, end to end.")
+    print("  trace, 10 curated variants, an eval scorecard, the world-model critic, the")
+    print("  code-vs-pixel illustration, and a PPO learnability curve — the factory, end to end.")
     print("=" * 72)
 
 
