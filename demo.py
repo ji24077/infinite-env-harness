@@ -125,19 +125,21 @@ def main():
     hr("4. MUTATION  ->  compounding MAP-Elites evolution (objective / entity / topology, re-verified)")
     from harness.mutate import evolve
     seeds = [load_cached(n) for n in ("open_can", "push_delivery", "coins_hazard", "key_crate_return")]
-    # single-edit baseline (what the old engine did) vs compounding evolution
-    single = [{"spec": v["spec"], "difficulty": v["difficulty"], "lineage": 0}
-              for v in mutate(load_cached("key_crate_return"), n=12, seed=7, accel=False)]
+    # THE ENGINE: compounding MAP-Elites evolution (survivors re-fed, objectives/entities/rooms change)
     evolved = evolve(seeds, generations=70, seed=7, accel=True)
-    print("    single-edit mutate() (one template, one edit each):")
-    print("    " + E.format_diversity(E.diversity_report(single)).replace("\n", "\n    "))
-    print("    compounding evolve() (survivors re-fed, objectives/entities/rooms change):")
-    print("    " + E.format_diversity(E.diversity_report(evolved)).replace("\n", "\n    "))
-    print(f"    {'evolved variant':<34} {'difficulty':<9} {'plan':<5} {'lineage':<8} regret")
-    print("    " + "-" * 68)
+    dv = E.diversity_report(evolved)
+    print("    evolve() — the compounding engine (survivors re-fed as parents; verify() gates each):")
+    print("    " + E.format_diversity(dv).replace("\n", "\n    "))
+    # one-line contrast with the old single-edit mutate() (kept only for back-compat / regression)
+    single = E.diversity_report([{"spec": v["spec"], "difficulty": v["difficulty"], "lineage": 0}
+                                 for v in mutate(load_cached("key_crate_return"), n=12, seed=7, accel=False)])
+    print(f"    (the OLD single-edit mutate(), for contrast: {single['distinct_objectives']} objective, "
+          f"{single['distinct_entity_multisets']} entity-multiset, lineage {single['max_lineage_depth']})")
+    print(f"    {'evolved variant (compounded ops)':<36} {'difficulty':<9} {'plan':<5} {'lineage':<7} regret")
+    print("    " + "-" * 70)
     for v in evolved[:args.variants]:
-        ops = "+".join(v["ops"][:2])[:32] if v["ops"] else "(seed)"
-        print(f"    {ops:<34} {v['difficulty']:<9} {v['plan_len']:<5} L{v['lineage']:<7} {v['regret']:+.0f}")
+        ops = "+".join(v["ops"][:2])[:34] if v["ops"] else "(seed)"
+        print(f"    {ops:<36} {v['difficulty']:<9} {v['plan_len']:<5} L{v['lineage']:<6} {v['regret']:+.0f}")
 
     # 5. EVAL SCORECARD
     hr("5. EVAL SCORECARD  (noisy oracle across all verified envs, difficulty-stratified)")
