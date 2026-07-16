@@ -10,7 +10,10 @@ import io
 import os
 from typing import List, Optional
 
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+# default to headless (dummy) so imports/tests never need a display; play.py sets HARNESS_WINDOW
+# to open a real window instead.
+if not os.environ.get("HARNESS_WINDOW"):
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import math
 import pygame

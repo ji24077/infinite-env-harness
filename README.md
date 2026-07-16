@@ -38,6 +38,12 @@ uv run demo.py --offline      # full pipeline on cached, pre-verified environmen
 matters). With a key, `export ANTHROPIC_API_KEY=...` and `uv run demo.py` generates environments
 live from text. No `uv`? See [requirements.txt](requirements.txt) (`pip`, Python 3.11–3.12).
 
+**Prefer to see it in a real window?**
+```bash
+uv run play.py --watch          # watch the oracle solve a level live (a real game window)
+uv run play.py                  # play it yourself: arrow keys / WASD to move, SPACE, R, ESC
+```
+
 ## What the one command shows
 
 ```
@@ -155,6 +161,7 @@ physics-engine credential without physics on the critical path.
 
 ```
 demo.py            one-command pipeline (--offline works with no API key)
+play.py            open a real window: play a level yourself, or --watch the oracle solve it
 evaluate.py        scorecard + code-vs-pixel contrast (--vlm --live for a Claude judge)
 learnability.py    PPO capstone (optional: uv run --extra rl)
 harness/
