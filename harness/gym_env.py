@@ -1,0 +1,169 @@
+"""
+Gymnasium environment — the harness's top-level interface, and the evidence that this is
+an RL *environment factory*, not a toy. Any Gymnasium-compatible learner (PPO here; GI's
+vision policy in principle) mounts on it unchanged:
+
+    env = make_from_spec(spec)          # or make("a room with a locked door...")
+    obs, info = env.reset()
+    obs, reward, terminated, truncated, info = env.step(action)
+
+Two design points that matter for GI:
+  * obs_mode="state" | "pixels" — the SAME env yields a compact vector OR a rendered frame,
+    so you can train/eval on code-truth features or on pixels (their policy's input).
+  * reward is potential-based shaping from the oracle cost-to-go (verifier.build_distance_field)
+    plus the sparse code-truth terminal — the solver that proves solvability also feeds RL.
+  * info["code_state"]["predicates"] is the frame-exact, code-defined reward signal.
+
+The 6-number controller action [fwd,back,left,right,mouseDX,mouseDY] (GI's exact interface)
+is exposed via action_mode="controller" as the 2D->3D transfer contract; the working demo
+uses Discrete(5).
+"""
+
+from __future__ import annotations
+
+import math
+from typing import Optional
+
+import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+
+from harness.dsl.schema import EnvSpec
+from harness.compiler import compile_spec
+from harness.engine import gridlogic as G
+from harness.engine import renderer as R
+from harness import verifier
+
+DISCRETE_ACTIONS = ["up", "down", "left", "right", "interact"]
+MAX_PREDS = 4
+
+
+class HarnessEnv(gym.Env):
+    metadata = {"render_modes": ["rgb_array"]}
+
+    def __init__(self, spec: EnvSpec, obs_mode: str = "state",
+                 action_mode: str = "discrete", max_steps: Optional[int] = None):
+        super().__init__()
+        self.spec = spec
+        self.obs_mode = obs_mode
+        self.action_mode = action_mode
+        self.world = compile_spec(spec)
+        self.max_steps = max_steps or spec.time_limit
+        self._dist = verifier.build_distance_field(self.world.level, spec.objective)
+        self._max_d = max(self._dist.values()) if self._dist else 1
+
+        if action_mode == "controller":
+            # GI's exact contract: [fwd, back, left, right, mouseDX, mouseDY]
+            self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(6,), dtype=np.float32)
+        else:
+            self.action_space = spaces.Discrete(len(DISCRETE_ACTIONS))
+
+        if obs_mode == "pixels":
+            surf = R.render_surface(self.world)
+            w, h = surf.get_size()
+            self.observation_space = spaces.Box(0, 255, shape=(h, w, 3), dtype=np.uint8)
+        else:
+            self.observation_space = spaces.Box(-1.0, 1.0, shape=(self._state_dim(),), dtype=np.float32)
+
+    # ── obs ──────────────────────────────────────────────────────────────────────
+
+    def _state_dim(self) -> int:
+        return 4 + 1 + MAX_PREDS + 6  # agent, exit, held_frac, preds, nearest key/can/coin
+
+    def _state_vec(self) -> np.ndarray:
+        w, h = self.spec.width, self.spec.height
+        ax, ay = self.world.state.agent
+        v = [ax / w * 2 - 1, ay / h * 2 - 1]
+        if self.world.level.exit:
+            ex, ey = self.world.level.exit
+            v += [ex / w * 2 - 1, ey / h * 2 - 1]
+        else:
+            v += [0.0, 0.0]
+        total_items = max(1, len(self.world.level.keys) + len(self.world.level.cans)
+                          + len(self.world.level.all_coin_ids))
+        v.append(len(self.world.state.held) / total_items)
+        preds = list(self.world.predicate_states().values())
+        for i in range(MAX_PREDS):
+            v.append(1.0 if (i < len(preds) and preds[i]) else 0.0)
+        v += self._nearest_vec(self.world.level.keys.keys())
+        v += self._nearest_vec(self.world.level.cans.values())
+        v += self._nearest_vec(self.world.level.coins.keys())
+        return np.array(v, dtype=np.float32)
+
+    def _nearest_vec(self, cells):
+        ax, ay = self.world.state.agent
+        w, h = self.spec.width, self.spec.height
+        best, bd = None, 1e9
+        for (cx, cy) in cells:
+            d = abs(ax - cx) + abs(ay - cy)
+            if d < bd:
+                bd, best = d, (cx, cy)
+        if best is None:
+            return [0.0, 0.0]
+        return [(best[0] - ax) / w, (best[1] - ay) / h]
+
+    def _obs(self):
+        if self.obs_mode == "pixels":
+            surf = R.render_surface(self.world, tick=self.world.step_count)
+            arr = np.array(R.to_pil(surf))
+            return arr
+        return self._state_vec()
+
+    # ── gym API ───────────────────────────────────────────────────────────────────
+
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
+        self.world.reset()
+        return self._obs(), {"code_state": self.world.code_state()}
+
+    def _phi(self):
+        d = self._dist.get(self.world.state, self._max_d + 1)
+        return -d / max(1, self._max_d)
+
+    def step(self, action):
+        if self.action_mode == "controller":
+            act = self._decode_controller(action)
+        else:
+            act = DISCRETE_ACTIONS[int(action)]
+
+        phi_before = self._phi()
+        won_before = self.world.won
+        self.world.step(act)
+        phi_after = self._phi()
+
+        shaping = 0.99 * phi_after - phi_before          # potential-based (policy-invariant)
+        reward = -0.01 + shaping                          # small step cost + progress
+        terminated = self.world.done and self.world.won
+        truncated = self.world.done and not self.world.won
+        if self.world.won and not won_before:
+            reward += 10.0                                # sparse code-truth terminal
+
+        info = {"code_state": self.world.code_state(),
+                "oracle_remaining": self._dist.get(self.world.state, None),
+                "won": self.world.won}
+        return self._obs(), float(reward), terminated, truncated, info
+
+    def _decode_controller(self, a) -> str:
+        # map [fwd,back,left,right,mdx,mdy] onto the nearest grid move; heading follows mdx
+        fwd, back, left, right, mdx, mdy = [float(x) for x in a]
+        self.world.pose[2] += mdx * 0.3
+        idx = int(np.argmax([fwd, back, left, right]))
+        return ["up", "down", "left", "right"][idx]
+
+    def render(self):
+        return np.array(R.to_pil(R.render_surface(self.world, tick=self.world.step_count)))
+
+
+# ── convenience constructors ─────────────────────────────────────────────────────
+
+def make_from_spec(spec, **kwargs) -> HarnessEnv:
+    if not isinstance(spec, EnvSpec):
+        spec = EnvSpec(**spec)
+    return HarnessEnv(spec, **kwargs)
+
+
+def make(command: str, model: str = "claude-sonnet-4-5", **kwargs) -> HarnessEnv:
+    """text command -> generated + verified env -> Gymnasium Env. Requires ANTHROPIC_API_KEY."""
+    from harness.generator import generate
+    spec, _vr, _log = generate(command, model=model)
+    return HarnessEnv(spec, **kwargs)

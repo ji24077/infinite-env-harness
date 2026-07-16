@@ -1,0 +1,14 @@
+# pip fallback (prefer `uv run demo.py`, which pins Python 3.12 automatically).
+# NOTE: pymunk / pygame-ce ship prebuilt wheels for CPython 3.11-3.12 but not 3.14,
+# so create a 3.11/3.12 venv:  python3.12 -m venv .venv && . .venv/bin/activate
+pymunk>=7.0
+pygame-ce>=2.5
+pydantic>=2.0
+gymnasium>=1.0
+anthropic>=0.40
+pillow>=10.0
+
+# optional RL capstone (uv run --extra rl python learnability.py):
+# stable-baselines3>=2.3
+# torch>=2.2
+# matplotlib>=3.7

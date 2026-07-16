@@ -1,0 +1,34 @@
+[project]
+name = "infinite-env-harness"
+version = "0.1.0"
+description = "Text -> verified 2D environments + agent maneuvering. GI tech challenge."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "pymunk>=7.0",       # 2D rigid-body physics for dynamic props (crate, ball)
+    "pygame-ce>=2.5",    # headless rendering to PNG frames
+    "pydantic>=2.0",     # DSL schema + validation (L1)
+    "gymnasium>=1.0",    # standard RL Env interface
+    "anthropic>=0.40",   # Claude strict tool use for DSL generation
+    "pillow>=10.0",      # GIF export
+]
+
+[project.optional-dependencies]
+# Optional: the PPO learnability capstone. Kept out of the core so `uv run demo.py`
+# stays lean (no torch). Install with:  uv sync --extra rl   /   uv run --extra rl ...
+rl = [
+    "stable-baselines3>=2.3",
+    "torch>=2.2",
+    "matplotlib>=3.7",
+]
+
+[tool.uv]
+# pymunk / pygame-ce ship prebuilt wheels for cp311/cp312 but NOT cp314;
+# pinning 3.12 (via .python-version) makes `uv run` a zero-compile install.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["harness"]

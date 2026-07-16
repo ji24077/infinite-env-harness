@@ -1,0 +1,351 @@
+{
+  "spec": {
+    "name": "Key, Crate & Return",
+    "width": 19,
+    "height": 11,
+    "tiles": [
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    ],
+    "entities": [
+      {
+        "type": "player_start",
+        "id": "p",
+        "pos": [
+          2,
+          5
+        ]
+      },
+      {
+        "type": "crate",
+        "id": "c1",
+        "pos": [
+          4,
+          5
+        ]
+      },
+      {
+        "type": "key",
+        "id": "k1",
+        "pos": [
+          2,
+          8
+        ]
+      },
+      {
+        "type": "door",
+        "id": "d1",
+        "pos": [
+          9,
+          5
+        ],
+        "requires": "k1"
+      },
+      {
+        "type": "table",
+        "id": "t1",
+        "pos": [
+          16,
+          5
+        ]
+      },
+      {
+        "type": "can",
+        "id": "can1",
+        "pos": [
+          16,
+          5
+        ],
+        "on": "t1"
+      },
+      {
+        "type": "ball",
+        "id": "b1",
+        "pos": [
+          13,
+          2
+        ]
+      }
+    ],
+    "objective": [
+      {
+        "kind": "holding",
+        "item": "can1"
+      },
+      {
+        "kind": "at_start"
+      }
+    ],
+    "objective_text": "grab the key, unlock the door, take the can, return to start",
+    "time_limit": 300
+  },
+  "meta": {
+    "command": "a locked door, the key behind a pushable crate, bring the can back to start",
+    "difficulty": "hard",
+    "oracle_plan_len": 32,
+    "oracle_plan": [
+      "down",
+      "down",
+      "down",
+      "up",
+      "up",
+      "right",
+      "right",
+      "up",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "right",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left",
+      "left"
+    ],
+    "verified": true
+  }
+}
