@@ -1,6 +1,7 @@
 """
 Evaluator — turns the environment factory into a benchmark suite (GI's "training AND
-evaluating" use case), and hosts the headline: code-truth vs pixel-perception.
+evaluating" use case), plus an illustrative code-truth-vs-pixel micro-benchmark. (The
+load-bearing code-truth-vs-perception result is the world-model critic in harness/critic.py.)
 
 Two products:
 
@@ -11,7 +12,9 @@ Two products:
 2. code-vs-pixel contrast(): on the SAME saved frames, compare the frame-exact code-truth
    objective signal against a perception model reading pixels. The default perception model
    is a deterministic, offline pixel detector (no API); with --vlm --live it is Claude vision.
-   An enemy patrol occludes the can, so the pixel model mis-reports the pickup while code
+   NOTE: this is an illustration on a deliberately constructed occlusion scene, not a general
+   VLM benchmark. An enemy patrol occludes the can, so the pixel model mis-reports the pickup
+   while code
    truth stays exact — empirically demonstrating GI's founding rationale.
 """
 
