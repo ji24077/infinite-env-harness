@@ -183,8 +183,10 @@ def patrol_gauntlet() -> dict:
         name="Patrol Gauntlet", width=W, height=H, tiles=g,
         entities=[
             {"type": "player_start", "id": "p", "pos": [1, 5]},
-            {"type": "enemy", "id": "guard", "pos": [8, 3],
-             "patrol": [[8, 3], [8, 4], [8, 5], [8, 6], [8, 7], [8, 6], [8, 5], [8, 4]]},
+            # period-4 sweep through the crossing (8,5): occupied at odd phases. A straight dash
+            # reaches (8,5) at step 7 (phase 3) and DIES — the agent must wait/time its crossing.
+            {"type": "enemy", "id": "guard", "pos": [8, 4],
+             "patrol": [[8, 4], [8, 5], [8, 6], [8, 5]]},
             {"type": "exit", "id": "e", "pos": [15, 5]},
         ],
         objective=[{"kind": "reached_exit"}],
