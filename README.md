@@ -73,6 +73,25 @@ length. *The same solver that proves solvability supplies the training signal.* 
 with `uv run --extra rl python learnability.py`; the offline flywheel (generate → verify → oracle
 GIF → trace → mutate) is the top of `uv run demo.py --offline`.
 
+## An agent maneuvers it — and surfaces the pixel-nav gap
+
+The challenge asks that an agent maneuver through the generated environments — so here is **Claude
+itself** (not the scripted oracle) doing it, on a generated level:
+
+![agent navigating](assets/agent_nav.gif)
+
+The *same* Claude on the *same* level, differing only in what it observes:
+
+| observation | result |
+|---|---|
+| **code-state** (coordinate-tagged) | solves at **oracle-optimal** length (9 steps), reliably |
+| **rendered frames only** | works but is unreliable/inefficient — 17 steps here (vs 9 optimal), and on another run it did not finish within budget |
+
+That gap is not a bug — it is *why* GI trains a **vision-based** policy: pixel-space spatial
+navigation is the unreliable part. This factory reproduces the gap concretely in 2D, so every
+generated environment is a ready **training and eval ground** for exactly that policy. Reproduce:
+`uv run --env-file .env python scripts/nav_demo.py` (needs an API key; numbers vary run to run).
+
 ## Supporting: code-truth vs pixel perception (an illustrative micro-benchmark)
 
 A small illustration of *why* objectives live in code, on **one deliberately constructed** occlusion

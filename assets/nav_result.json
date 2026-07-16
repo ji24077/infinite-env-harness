@@ -1,0 +1,13 @@
+{
+  "env": "open_can",
+  "oracle_len": 9,
+  "state_agent": {
+    "won": true,
+    "steps": 9
+  },
+  "pixel_agent": {
+    "won": true,
+    "steps": 17,
+    "cap": 28
+  }
+}
