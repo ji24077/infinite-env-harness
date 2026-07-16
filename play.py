@@ -66,8 +66,9 @@ def main():
     pygame.init()
     surf = R.render_surface(world)
     screen = pygame.display.set_mode(surf.get_size())
-    mode = "WATCH oracle" if args.watch else "arrows/WASD to move"
-    pygame.display.set_caption(f"{spec.name}   [{mode}]  —  {spec.objective_text}")
+    mode = "WATCH oracle" if args.watch else "TURN-BASED: guards move when YOU move (SPACE = wait)"
+    pygame.display.set_caption(f"{spec.name}   [{mode}]")
+    hint_font = pygame.font.SysFont("monospace", 13, bold=True)
     clock = pygame.time.Clock()
 
     tick, plan_i, move_ms, frames = 0, 0, 0, 0
@@ -90,6 +91,11 @@ def main():
                 world.step(plan[plan_i]); plan_i += 1; tick += 1; move_ms = 0
 
         screen.blit(R.render_surface(world, tick=tick), (0, 0))
+        if not args.watch and not world.done:
+            # make the turn-based nature obvious so an idle screen doesn't read as "frozen"
+            hint = hint_font.render("turn-based — the world advances only when you move (SPACE=wait)",
+                                    True, (255, 235, 120))
+            screen.blit(hint, (8, 4))
         pygame.display.flip()
         clock.tick(30)
 
