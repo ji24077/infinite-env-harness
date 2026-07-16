@@ -127,13 +127,13 @@ def render_surface(world: World, tick: int = 0, coords: bool = True) -> "pygame.
         ring = tuple(int(v*pulse) for v in PAL["exit_ring"])
         pygame.draw.rect(surf, ring, r, 2)
 
-    # enemies (cosmetic patrol; can occlude items in the VLM-contrast demo)
+    # enemies (deadly deterministic patrol; drawn at the engine's exact time phase so what you
+    # see is what kills you — tick == the world's step count in every caller)
     for e in spec.entities:
         if e.type == "enemy":
             x, y = e.pos
-            if e.patrol and len(e.patrol) >= 2:
-                idx = (tick // 6) % len(e.patrol)
-                x, y = e.patrol[idx]
+            if e.patrol:
+                x, y = e.patrol[tick % len(e.patrol)]
             cx, cy = x*TILE + TILE//2, y*TILE + TILE//2
             pygame.draw.circle(surf, PAL["enemy"], (cx, cy), TILE//2 - 4)
             pygame.draw.circle(surf, PAL["enemy_eye"], (cx-4, cy-3), 2)

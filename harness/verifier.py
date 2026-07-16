@@ -60,12 +60,13 @@ def solve(level: G.Level, objective, start=None, budget: int = SEARCH_BUDGET):
     frontier = deque([start])
     parent = {start: (None, None)}  # state -> (prev_state, action)
     expanded = 0
+    actions = G.plan_actions(level)   # includes WAIT when enemies patrol
     while frontier:
         st = frontier.popleft()
         expanded += 1
         if expanded > budget:
             return None, expanded
-        for action in G.ACTIONS:
+        for action in actions:
             nxt = G.step(level, st, action)
             if nxt is None or nxt in parent:
                 continue
@@ -92,12 +93,13 @@ def build_distance_field(level: G.Level, objective, budget: int = SEARCH_BUDGET)
     adj = {}                      # state -> list[successor]
     frontier = deque([start]); seen = {start}
     goals = []
+    actions = G.plan_actions(level)
     while frontier:
         st = frontier.popleft()
         if G.objective_satisfied(level, objective, st):
             goals.append(st)
         succ = []
-        for a in G.ACTIONS:
+        for a in actions:
             nxt = G.step(level, st, a)
             if nxt is not None:
                 succ.append(nxt)

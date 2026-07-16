@@ -45,7 +45,7 @@ class GreedyHeuristic:
         ax, ay = env.world.state.agent
         targets = self._targets(env)
         if not targets:
-            return _AIDX["interact"]
+            return _AIDX["wait"]
         tx, ty = min(targets, key=lambda c: abs(c[0]-ax) + abs(c[1]-ay))
         # greedily reduce the larger axis gap; try a step, fall back if blocked
         options = []

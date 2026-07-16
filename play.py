@@ -6,7 +6,7 @@ play.py — open a REAL window and play (or watch) a generated environment.
   uv run play.py --watch                # watch the scripted oracle solve it live
   uv run play.py "a room with a key, a locked door, and a can"   # generate live (needs API key)
 
-Controls:  arrow keys / WASD move · SPACE interact · R reset · ESC quit.
+Controls:  arrow keys / WASD move · SPACE wait (pass a tick to dodge patrols) · R reset · ESC quit.
 Goal + progress are shown in the HUD; predicate ticks flip green as you satisfy the objective.
 """
 
@@ -42,7 +42,7 @@ KEYMAP = {
     pygame.K_DOWN: "down", pygame.K_s: "down",
     pygame.K_LEFT: "left", pygame.K_a: "left",
     pygame.K_RIGHT: "right", pygame.K_d: "right",
-    pygame.K_SPACE: "interact",
+    pygame.K_SPACE: "wait",
 }
 
 

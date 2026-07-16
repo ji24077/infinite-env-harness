@@ -163,6 +163,39 @@ def test_contrast_timing_and_disagreements():
     assert c["disagreements"] >= 1
 
 
+def test_deadly_enemy_kills_on_contact():
+    from harness.engine.world import World
+    W, H = 12, 8
+    g = [[1] * W for _ in range(H)]
+    for y in range(1, H - 1):
+        for x in range(1, W - 1):
+            g[y][x] = 0
+    spec = {"name": "t", "width": W, "height": H, "tiles": g, "entities": [
+        {"type": "player_start", "id": "p", "pos": [2, 3]},
+        {"type": "enemy", "id": "e", "pos": [3, 3], "patrol": [[3, 3]]},   # stationary guard
+        {"type": "exit", "id": "x", "pos": [9, 3]}],
+        "objective": [{"kind": "reached_exit"}], "objective_text": "reach", "time_limit": 50}
+    w = World(EnvSpec(**spec))
+    w.step("right")                        # walk straight into the guard
+    assert w.done and not w.won            # contact = death
+
+
+def test_patrol_gauntlet_solvable_and_survivable():
+    spec = F.patrol_gauntlet()
+    vr = verify(spec)
+    assert vr.ok                                           # a timed path exists
+    env = make_from_spec(spec)
+    out = run_episode(env, ScriptedOracle())
+    assert out["won"]                                      # oracle actually survives the guard
+
+
+def test_enemy_sealing_the_route_is_rejected():
+    spec = F.patrol_gauntlet()
+    spec["entities"][1]["patrol"] = [[8, 5]]               # guard parks on the only crossing
+    spec["entities"][1]["pos"] = [8, 5]
+    assert not verify(spec).ok                             # provably unsolvable -> rejected
+
+
 def test_world_model_critic_flags_hallucinations():
     from harness import critic
     from harness.verifier import solve

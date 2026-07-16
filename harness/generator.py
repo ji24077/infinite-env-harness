@@ -37,7 +37,10 @@ ENTITIES (each needs a unique id and a pos [x,y] on a floor/grass tile, never on
 - table + can                 : a 'can' is picked up when the agent is on OR next to its cell (grab from a table).
 - ball                        : a physics prop (rolls); purely decorative.
 - coin                        : collectible.
-- enemy {patrol:[[x,y],...]}  : cosmetic patrol.
+- enemy {patrol:[[x,y],...]}  : a DEADLY guard. patrol lists its per-tick cycle of cells (each
+                                cell walkable, adjacent to the next); the agent dies on contact.
+                                Leave a timed path through — never seal the only route. Don't start
+                                a patrol on the player's spawn.
 
 OBJECTIVE: a list of predicates ALL of which must hold to win. Kinds:
   reached_exit | holding(item) | at_start | item_at(item, cell) | collected_all_coins.

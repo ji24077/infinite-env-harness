@@ -42,7 +42,7 @@ class ScriptedOracle:
             self.plan = plan or []
             self.i = 0
             if not self.plan:
-                return _AIDX["interact"]
+                return _AIDX["wait"]
         a = self.plan[self.i]
         self.i += 1
         return _AIDX[a]

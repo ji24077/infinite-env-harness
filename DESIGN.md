@@ -21,7 +21,10 @@ Everything else follows from wanting that solver to stay honest.
 `harness/engine/gridlogic.py` is imported by **both** the verifier (to search) and the runtime
 engine (to step). So a plan the solver proves is, by construction, a plan the engine replays
 frame-exact. Without this shared source of truth, "verified solvable" would be a claim about a
-different system than the one you play. Rules are deliberately **conservative (sound)**: when a
+different system than the one you play. This is what lets us add **deadly deterministic enemies**
+safely: the search state carries an enemy `time-phase`, and `resolve()` reports death via cell
+occupation at the new phase — the *same* check the engine runs — so a certified path is a provably
+survivable one. Avoidance becomes a real timing puzzle without weakening the guarantee. Rules are deliberately **conservative (sound)**: when a
 push/pickup is ambiguous we take the more-restrictive branch, so the solver never over-claims
 solvability. Over-strictness only triggers an extra repair-loop regeneration.
 

@@ -34,7 +34,7 @@ from harness.engine import gridlogic as G
 from harness.engine import renderer as R
 from harness import verifier
 
-DISCRETE_ACTIONS = ["up", "down", "left", "right", "interact"]
+DISCRETE_ACTIONS = ["up", "down", "left", "right", "wait"]  # wait = pass one tick (dodge patrols)
 MAX_PREDS = 4
 
 GAMMA = 0.99      # shaping discount; keep the learner's gamma equal to this (see learnability.py)
@@ -159,8 +159,8 @@ class HarnessEnv(gym.Env):
         fwd, back, left, right, mdx, mdy = [float(x) for x in a]
         self.world.pose[2] += mdx * 0.3                  # facing follows mouseDX (cosmetic)
         moves = [fwd, back, left, right]
-        if max(moves) < 0.1:                             # dead-zone: no clear intent -> no-op
-            return "interact"
+        if max(moves) < 0.1:                             # dead-zone: no clear intent -> wait
+            return "wait"
         return ["up", "down", "left", "right"][int(np.argmax(moves))]
 
     def render(self):

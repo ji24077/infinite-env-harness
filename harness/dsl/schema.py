@@ -32,7 +32,7 @@ ENTITY_KINDS = (
     "table",         # static prop a can rests on (cosmetic anchor)
     "ball",          # rollable prop (pure pymunk physics — the "physics engine" credential)
     "coin",          # collectible for collected_all_coins objectives
-    "enemy",         # cosmetic patrol; can occlude items (used in the VLM-contrast demo)
+    "enemy",         # DEADLY deterministic patrol (contact = death); verifier proves a timed path
 )
 
 PRED_KINDS = (
@@ -121,6 +121,21 @@ class EnvSpec(BaseModel):
         # at most one exit (build_level keeps a single goal cell)
         if len([e for e in self.entities if e.type == "exit"]) > 1:
             raise ValueError("at most one exit entity is allowed")
+
+        # enemies: patrol cells must be walkable + in bounds, and the player must not spawn on
+        # an enemy's initial (tick-0) cell (that would be instant death / a degenerate level)
+        start_cell = self.by_type("player_start")[0].pos
+        for e in self.entities:
+            if e.type != "enemy":
+                continue
+            cycle = e.patrol or [e.pos]
+            for (cx, cy) in cycle:
+                if not (0 <= cx < self.width and 0 <= cy < self.height):
+                    raise ValueError(f"enemy {e.id} patrols out of bounds at {(cx, cy)}")
+                if self.tiles[cy][cx] in (1, 2):
+                    raise ValueError(f"enemy {e.id} patrols into a wall/hazard at {(cx, cy)}")
+            if tuple(cycle[0]) == tuple(start_cell):
+                raise ValueError(f"enemy {e.id} starts on the player spawn (instant death)")
 
         # door requires an existing key
         for e in self.entities:

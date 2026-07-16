@@ -59,5 +59,5 @@ class PixelAgent:
         )
         for b in resp.content:
             if getattr(b, "type", None) == "tool_use":
-                return _AIDX.get(b.input.get("action", "interact"), _AIDX["interact"])
-        return _AIDX["interact"]
+                return _AIDX.get(b.input.get("action", "wait"), _AIDX["wait"])
+        return _AIDX["wait"]

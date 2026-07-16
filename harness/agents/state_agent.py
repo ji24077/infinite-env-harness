@@ -82,7 +82,7 @@ class StateAgent:
         )
         for b in resp.content:
             if getattr(b, "type", None) == "tool_use":
-                act = b.input.get("action", "interact")
+                act = b.input.get("action", "wait")
                 self.history.append(act)
-                return _AIDX.get(act, _AIDX["interact"])
-        return _AIDX["interact"]
+                return _AIDX.get(act, _AIDX["wait"])
+        return _AIDX["wait"]

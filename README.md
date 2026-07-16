@@ -81,11 +81,11 @@ compared against a perception model answering *"has the can been picked up?"*:
 
 ![contrast](assets/contrast.png)
 
-Code truth is exact; the offline pixel **stand-in** detector disagrees on 6 of 15 frames (occlusion
-false positives), at a per-frame image scan vs a microsecond predicate read (`uv run demo.py
---offline` prints the medians). `uv run python evaluate.py --vlm --live` swaps in a **real Claude
-VLM** — in one observed run it took ~1.7 s/frame + $ per call. This is an illustration, not a
-general VLM benchmark.
+Code truth is exact; the offline pixel **stand-in** detector disagrees on several frames (3 of 15
+in the shipped run; occlusion false positives), at a per-frame image scan vs a microsecond predicate
+read (`uv run demo.py --offline` prints the exact medians). `uv run python evaluate.py --vlm --live`
+swaps in a **real Claude VLM** — in one observed run it took ~1.7 s/frame + $ per call. This is an
+illustration, not a general VLM benchmark.
 
 ## A direction: code-truth as a rollout-legality checker
 
@@ -132,6 +132,12 @@ and pickups are grid-authoritative and deterministic (identical to the verifier'
 oracle plans replay frame-exact); `pymunk` drives *soft physics props* (a rolling ball) — the
 physics-engine credential without physics on the critical path.
 
+**Deadly patrolling enemies.** Enemies are not decoration — a deterministic patrol, contact = death.
+The verifier searches over `(position, inventory, crates, time-phase)`, so "solvable" means *a timed
+route that dodges every guard provably exists* (a guard that seals the only crossing is rejected as
+unsolvable). This makes avoidance a real timing puzzle — and exactly the dynamic-obstacle signal an
+RL navigation policy needs. Play one: `uv run play.py --watch --env patrol_gauntlet`.
+
 ## Diversity gallery (all cached, all verified)
 
 ![gallery](assets/gallery.png)
@@ -146,9 +152,10 @@ physics-engine credential without physics on the critical path.
 
 ## Limitations & the 3D path
 
-- The L2 solver is sound + complete over `(agent, inventory, crates)` **within a 400k-state search
-  budget**; past it we conservatively reject (never a false "solvable"). We keep mechanics where BFS
-  stays cheap (lock-key, hazards, single-cell pushes) and deliberately avoid PSPACE traps.
+- The L2 solver is sound + complete over `(agent, inventory, crates, enemy time-phase)` **within a
+  400k-state search budget**; past it we conservatively reject (never a false "solvable"). We keep
+  mechanics where BFS stays cheap (lock-key, hazards, single-cell pushes, short-period patrols) and
+  deliberately avoid PSPACE traps.
 - Physics is decorative by design; game logic is discrete. That is a feature (deterministic
   verification), and the boundary is explicit.
 - **3D:** the observation/action/reward *interface* is the transfer unit. The tile IR generalizes

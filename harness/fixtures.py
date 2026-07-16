@@ -145,9 +145,10 @@ def push_delivery() -> dict:
 
 # ── 6) contrast scene: an enemy patrol occludes the can early (at spawn) ─────────
 def occlusion_can() -> dict:
-    """Used by the code-vs-pixel contrast. The enemy sprite sits ON the can for the first few
-    frames (then moves away), so a pixel detector loses sight of the can early and FALSELY
-    reports 'picked up' while code truth stays exact until the agent actually grabs it."""
+    """Used by the code-vs-pixel contrast. A deadly guard sits ON the can for the first few ticks
+    (then moves away), so a pixel detector loses sight of the can early and FALSELY reports
+    'picked up' while code truth stays exact until the agent actually grabs it. The oracle both
+    dodges the guard and grabs the can — the verifier proves that timed path exists."""
     W, H = 16, 9
     g = _room(W, H)
     return dict(
@@ -167,8 +168,34 @@ def occlusion_can() -> dict:
     )
 
 
+# ── 7) timing puzzle: cross a corridor past a deadly patrolling guard ─────────────
+def patrol_gauntlet() -> dict:
+    """A 1-wide corridor whose only crossing (8,5) is swept by a guard patrolling a vertical
+    shaft. The agent must TIME its dash (or `wait` for the guard to pass) — a real avoidance
+    puzzle the verifier still proves solvable by searching over (position, time-phase)."""
+    W, H = 17, 11
+    g = [[1] * W for _ in range(H)]
+    for x in range(1, 16):
+        g[5][x] = 0                         # horizontal corridor
+    for y in range(1, 10):
+        g[y][8] = 0                         # vertical shaft the guard patrols
+    return dict(
+        name="Patrol Gauntlet", width=W, height=H, tiles=g,
+        entities=[
+            {"type": "player_start", "id": "p", "pos": [1, 5]},
+            {"type": "enemy", "id": "guard", "pos": [8, 3],
+             "patrol": [[8, 3], [8, 4], [8, 5], [8, 6], [8, 7], [8, 6], [8, 5], [8, 4]]},
+            {"type": "exit", "id": "e", "pos": [15, 5]},
+        ],
+        objective=[{"kind": "reached_exit"}],
+        objective_text="cross the corridor past the patrolling guard, reach the exit",
+        time_limit=200,
+    )
+
+
 ALL = {
     "open_can": open_can,
+    "patrol_gauntlet": patrol_gauntlet,
     "key_crate_return": key_crate_return,
     "three_rooms": three_rooms,
     "coins_hazard": coins_hazard,

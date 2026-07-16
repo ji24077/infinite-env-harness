@@ -86,16 +86,21 @@ class World:
     # ── stepping ─────────────────────────────────────────────────────────────────
 
     def step(self, action: str) -> None:
-        """Discrete action: up/down/left/right/interact. Grid-authoritative."""
+        """Discrete action: up/down/left/right/wait/interact. Grid-authoritative, with
+        deterministic patrolling enemies (contact = death), matching the verifier exactly."""
         if self.done:
             return
         self.step_count += 1
-        if action in G.DELTAS:
-            nxt = G.step(self.level, self.state, action)
-            if nxt is not None:
-                if nxt.held != self.state.held:
-                    self.message = "picked up " + ",".join(sorted(nxt.held - self.state.held))
-                self.state = nxt
+        nxt, event = G.resolve(self.level, self.state, action)
+        if event == "dead":
+            self.done, self.won = True, False
+            self.message = "caught by an enemy!"
+            self._sync_physics()
+            return
+        if event == "ok" and nxt is not None:
+            if nxt.held != self.state.held:
+                self.message = "picked up " + ",".join(sorted(nxt.held - self.state.held))
+            self.state = nxt
         # update continuous pose to grid center + facing
         ax, ay = self.state.agent
         if action in G.DELTAS:
