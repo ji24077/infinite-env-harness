@@ -135,3 +135,84 @@ def mutate(base_spec: dict, n: int = 10, seed: int = 0,
     if accel:
         survivors.sort(key=lambda s: (s["regret"], s["plan_len"]), reverse=True)
     return survivors
+
+
+# ── compounding, generative evolution (MAP-Elites / ACCEL-flavored) ──────────────────
+# The single-edit mutate() above never changes the objective, entity roster, or topology, so its
+# output is a jittered neighborhood of ONE template. evolve() fixes that: it keeps an archive keyed
+# by (objective-signature, difficulty-band), re-samples SURVIVORS as parents, and applies 1..k of
+# the richer operators.py edits — so children compound edits across a lineage, and the objective /
+# entities / rooms genuinely change. Every child still passes the unchanged verify() gate.
+
+from harness.operators import ALL_OPERATORS, within_caps
+
+
+def _obj_sig(spec: dict):
+    return tuple(sorted((p["kind"], p.get("item"),
+                         tuple(p["cell"]) if p.get("cell") else None) for p in spec["objective"]))
+
+
+def _ext_sig(spec: dict):
+    """Full structural signature: tiles + typed entity roster + objective (dedup key)."""
+    return (tuple(tuple(r) for r in spec["tiles"]),
+            tuple(sorted((e["type"], tuple(e["pos"]), e.get("requires")) for e in spec["entities"])),
+            _obj_sig(spec))
+
+
+def evolve(seeds: List[dict], generations: int = 80, max_ops: int = 3, seed: int = 0,
+           accel: bool = True, log: Optional[Callable[[str], None]] = None) -> List[dict]:
+    """Grow a diverse archive from `seeds` by compounding operators.py edits under verify().
+    Returns records {spec, name, difficulty, plan_len, regret, lineage, ops}, best-regret-first."""
+    emit = log or (lambda *_: None)
+    rng = np.random.default_rng(seed)
+    archive: Dict[tuple, dict] = {}          # (obj_sig, difficulty) -> best record in that cell
+    seen = set()
+
+    def _insert(spec: dict, vr: VerifyResult, lineage: int, ops: list):
+        # quality within a MAP-Elites cell = harder (longer plan); regret is computed once at the
+        # end for the final archive only (an oracle+greedy rollout per candidate is too slow).
+        desc = (_obj_sig(spec), vr.difficulty)
+        cur = archive.get(desc)
+        if cur is None or vr.plan_len > cur["plan_len"]:
+            archive[desc] = {"spec": spec, "name": spec.get("name", "evolved"),
+                             "difficulty": vr.difficulty, "plan_len": vr.plan_len,
+                             "regret": 0.0, "lineage": lineage, "ops": ops}
+
+    for s in seeds:
+        vr = verify(s)
+        if vr.ok:
+            seen.add(_ext_sig(s))
+            _insert(copy.deepcopy(s), vr, 0, [])
+    emit(f"  seeded archive: {len(archive)} cells from {len(seeds)} fixtures")
+
+    for gen in range(generations):
+        if not archive:
+            break
+        parent = list(archive.values())[int(rng.integers(0, len(archive)))]  # descriptor-uniform
+        cand = copy.deepcopy(parent["spec"])
+        ops: List[str] = []
+        for _ in range(1 + int(rng.integers(0, max_ops))):
+            op = ALL_OPERATORS[int(rng.integers(0, len(ALL_OPERATORS)))]
+            out = op(cand, rng)
+            if out is not None:
+                cand = out
+                ops.append(op.__name__)
+        if not ops or not within_caps(cand):
+            continue
+        sig = _ext_sig(cand)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        vr = verify(cand)
+        if not vr.ok:
+            continue
+        cand["name"] = f"evolved ·gen{gen}· {'+'.join(ops)}"[:70]
+        _insert(cand, vr, parent["lineage"] + 1, ops)
+        emit(f"  gen{gen:3d} lineage={parent['lineage']+1} {vr.difficulty:6s} "
+             f"plan={vr.plan_len:3d}  {'+'.join(ops)[:44]}")
+
+    records = list(archive.values())
+    if accel:                                 # ACCEL regret, computed once on the final archive
+        for r in records:
+            r["regret"] = _regret(EnvSpec(**r["spec"]))[0]
+    return sorted(records, key=lambda r: (r["regret"], r["plan_len"]), reverse=True)

@@ -226,3 +226,26 @@ def test_deleaked_obs_drops_goal_compass():
     leaked = make_from_spec(F.open_can())
     honest = make_from_spec(F.open_can(), leak_goal_vectors=False)
     assert honest.observation_space.shape[0] == leaked.observation_space.shape[0] - 6
+
+
+# ── Phase 3: compounding, generative evolution (not single-edit clones) ────────────
+
+def test_evolve_compounds_and_diversifies():
+    from harness.mutate import evolve
+    from harness.eval import diversity_report
+    seeds = [F.open_can(), F.push_delivery(), F.coins_hazard(), F.key_crate_return()]
+    rec = evolve(seeds, generations=50, seed=1, accel=False)
+    d = diversity_report(rec)
+    # the single-edit engine yields 1 distinct objective and lineage depth 0; evolution must beat both
+    assert d["distinct_objectives"] >= 3          # objectives actually change
+    assert d["max_lineage_depth"] >= 2            # edits compound across a lineage
+    assert d["distinct_entity_multisets"] >= 4    # entity rosters change
+
+
+def test_evolved_children_all_verified_solvable():
+    from harness.mutate import evolve
+    from harness.verifier import verify
+    rec = evolve([F.open_can(), F.coins_hazard()], generations=40, seed=2, accel=False)
+    assert len(rec) >= 3
+    for r in rec:
+        assert verify(r["spec"]).ok               # every survivor is still provably solvable

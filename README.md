@@ -51,7 +51,7 @@ uv run play.py                  # play it yourself: arrow keys / WASD to move, S
 1. TEXT COMMAND    -> environment, streamed L1 schema / L2 solvable / L3 physics logs
 2. ORACLE PLAN     -> replay GIF               (proof the environment is beatable)
 3. ROLLOUT         -> trace.jsonl + frames/    (pixel frame + code reward = a training shard)
-4. MUTATION        -> 10 NEW verified envs      (ACCEL-inspired, auto difficulty labels)
+4. MUTATION        -> compounding MAP-Elites evolution (objectives/entities/rooms change)
 5. EVAL SCORECARD  -> success / efficiency, difficulty-stratified
 6. LEGALITY CRITIC -> flags injected illegal transitions   (a direction; see below)
 7. REWARD MODEL    -> pixel reward model trained on code labels (~18% held-out; GI use-case #3)
@@ -140,7 +140,7 @@ future work). It is a *direction*, not a headline claim.
 
 | GI use case | This harness |
 |---|---|
-| **Post-training environments** — diverse, at scale | Unbounded diversity via LLM generation; the **mutation engine** expands each base into a curated family of new environments, every one re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py)) |
+| **Post-training environments** — diverse, at scale | A **compounding MAP-Elites engine** (`evolve()`): survivors are re-fed as parents and edited by operators that change the **objective, entity roster, and room topology** — not single-edit clones. On the fixtures it lifts distinct objectives 1→11 and entity-multisets 1→11 (lineage depth 4), every child re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py), [`operators.py`](harness/operators.py)). Combinatorially large within the fixed DSL vocabulary — the honest ceiling, not literally infinite. |
 | **Code-level verifiable objectives** | Objectives are an **executable predicate program** checked frame-exact against engine state ([`engine/gridlogic.py`](harness/engine/gridlogic.py)) — never a VLM on pixels |
 | **Reward-model training** (code truth → pixels) | Rollouts emit **(pixel frame, code-truth reward)** pairs; `harness/reward_model.py` trains a tiny CNN on **only** those code labels and reaches **~18% held-out disagreement** — a pixel reward model approximating the exact, label-free code supervision ([`scripts/train_reward_model.py`](scripts/train_reward_model.py)) |
 | **2D → 3D transfer** | The Gymnasium `Env` exposes the **6-input action shape** GI's policy emits `[fwd,back,left,right,mouseDX,mouseDY]` (`action_mode="controller"`, a grid adapter: the 4 move channels select the step, mouseDX rotates the rendered facing, mouseDY is reserved) and dual `obs_mode="state"\|"pixels"` — same interface shape, swap the engine |
@@ -213,7 +213,8 @@ harness/
   engine/          gridlogic (semantics), world (hybrid + pymunk), renderer
   gym_env.py       Gymnasium Env (dual obs, controller adapter, shaped reward)
   agents/          scripted oracle, greedy probe, Claude state/pixel agents
-  mutate.py        ACCEL-inspired curated mutation (binary regret proxy)
+  mutate.py        mutate() single-edit + evolve() compounding MAP-Elites archive
+  operators.py     edit operators (add/remove entities, change objective, partition rooms)
   eval.py          scorecard + code-vs-pixel illustration
   reward_model.py  tiny pixel reward model trained on code-truth labels (GI use-case #3)
   critic.py        rollout-legality checker (proof-of-concept / direction)

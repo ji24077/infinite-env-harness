@@ -72,3 +72,34 @@ def format_scorecard(sc: dict) -> str:
     a = sc["aggregate"]
     lines.append(f"  OVERALL   success={a['success_rate']:.0%}  mean_eff={a['mean_efficiency']:.2f}  (n={a['n']})")
     return "\n".join(lines)
+
+
+# ── diversity report for the compounding mutation engine (mutate.evolve) ──────────
+
+def diversity_report(records) -> dict:
+    """Quantify how much variety evolve() actually produced: distinct objective signatures
+    (+Shannon entropy), distinct entity-type multisets, difficulty spread, and lineage depth —
+    the metrics that separate a real generator from a single-edit jitter of one template."""
+    import math
+    from collections import Counter
+    objs, multisets, diffs = Counter(), set(), Counter()
+    max_lineage = 0
+    for r in records:
+        spec = r["spec"]
+        objs[tuple(sorted(p["kind"] for p in spec["objective"]))] += 1
+        multisets.add(tuple(sorted(Counter(e["type"] for e in spec["entities"]).items())))
+        diffs[r["difficulty"]] += 1
+        max_lineage = max(max_lineage, r.get("lineage", 0))
+    total = sum(objs.values()) or 1
+    entropy = -sum((c / total) * math.log2(c / total) for c in objs.values())
+    return {"n": len(records), "distinct_objectives": len(objs),
+            "objective_entropy_bits": round(entropy, 2),
+            "distinct_entity_multisets": len(multisets),
+            "difficulty_hist": dict(diffs), "max_lineage_depth": max_lineage}
+
+
+def format_diversity(d: dict) -> str:
+    return (f"  environments={d['n']}   distinct objectives={d['distinct_objectives']} "
+            f"(entropy {d['objective_entropy_bits']} bits)   "
+            f"distinct entity-multisets={d['distinct_entity_multisets']}\n"
+            f"  difficulty={d['difficulty_hist']}   max lineage depth={d['max_lineage_depth']}")

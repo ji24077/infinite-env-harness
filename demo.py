@@ -121,17 +121,23 @@ def main():
     print(f"    + {len(out['trace'])} index-aligned frames -> {frame_dir}/")
     print(f"    e.g. final row: {json.dumps({k: v for k, v in {**out['trace'][-1]}.items() if k != 'code_state'})[:120]}...")
 
-    # 4. MUTATION -> infinite verified variants
-    hr(f"4. MUTATION  ->  {args.variants} NEW verified environments (ACCEL-curated, auto difficulty)")
-    base_name = "key_crate_return"
-    base = load_cached(base_name) if not online else hero_spec
-    variants = mutate(base, n=args.variants, seed=7, accel=True)
-    print(f"    base: '{base['name']}'   (regret = optimal solves but greedy fails)")
-    print(f"    {'variant':<40} {'difficulty':<9} {'plan':<5} regret")
-    print("    " + "-" * 64)
-    for v in variants:
-        desc = v["name"].split("·")[-1].strip()[:38]
-        print(f"    {desc:<40} {v['difficulty']:<9} {v['plan_len']:<5} {v['regret']:+.0f}")
+    # 4. MUTATION -> a COMPOUNDING, generative family (not single-edit clones)
+    hr("4. MUTATION  ->  compounding MAP-Elites evolution (objective / entity / topology, re-verified)")
+    from harness.mutate import evolve
+    seeds = [load_cached(n) for n in ("open_can", "push_delivery", "coins_hazard", "key_crate_return")]
+    # single-edit baseline (what the old engine did) vs compounding evolution
+    single = [{"spec": v["spec"], "difficulty": v["difficulty"], "lineage": 0}
+              for v in mutate(load_cached("key_crate_return"), n=12, seed=7, accel=False)]
+    evolved = evolve(seeds, generations=70, seed=7, accel=True)
+    print("    single-edit mutate() (one template, one edit each):")
+    print("    " + E.format_diversity(E.diversity_report(single)).replace("\n", "\n    "))
+    print("    compounding evolve() (survivors re-fed, objectives/entities/rooms change):")
+    print("    " + E.format_diversity(E.diversity_report(evolved)).replace("\n", "\n    "))
+    print(f"    {'evolved variant':<34} {'difficulty':<9} {'plan':<5} {'lineage':<8} regret")
+    print("    " + "-" * 68)
+    for v in evolved[:args.variants]:
+        ops = "+".join(v["ops"][:2])[:32] if v["ops"] else "(seed)"
+        print(f"    {ops:<34} {v['difficulty']:<9} {v['plan_len']:<5} L{v['lineage']:<7} {v['regret']:+.0f}")
 
     # 5. EVAL SCORECARD
     hr("5. EVAL SCORECARD  (noisy oracle across all verified envs, difficulty-stratified)")
