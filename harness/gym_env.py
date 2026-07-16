@@ -14,9 +14,9 @@ Two design points that matter for GI:
     plus the sparse code-truth terminal — the solver that proves solvability also feeds RL.
   * info["code_state"]["predicates"] is the frame-exact, code-defined reward signal.
 
-The 6-number controller action [fwd,back,left,right,mouseDX,mouseDY] (GI's exact interface)
-is exposed via action_mode="controller" as the 2D->3D transfer contract; the working demo
-uses Discrete(5).
+The 6-input action SHAPE [fwd,back,left,right,mouseDX,mouseDY] that GI's policy emits is exposed
+via action_mode="controller" (a grid adapter — mouseDX drives facing, mouseDY reserved) as the
+2D->3D transfer *interface shape*, not full continuous kinematics; the working demo uses Discrete(5).
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class HarnessEnv(gym.Env):
         self._max_d = max(self._dist.values()) if self._dist else 1
 
         if action_mode == "controller":
-            # GI's exact contract: [fwd, back, left, right, mouseDX, mouseDY]
+            # the 6-input action SHAPE GI's policy emits: [fwd, back, left, right, mouseDX, mouseDY]
             self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(6,), dtype=np.float32)
         else:
             self.action_space = spaces.Discrete(len(DISCRETE_ACTIONS))
