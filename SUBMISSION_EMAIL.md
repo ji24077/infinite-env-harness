@@ -15,7 +15,7 @@ headline turns your own premise into a number: on the same frames, a code-truth 
 frame-exact while a pixel model is fooled ~10 frames early by an occlusion — and a small PPO
 climbs the reward curve to prove the environments actually feed RL.
 
-Repo: **[link]** — clone and run `uv run demo.py --offline` (≈1 min, **no API key needed**); the
+Repo: https://github.com/ji24077/infinite-env-harness — clone and run `uv run demo.py --offline` (≈1 min, **no API key needed**); the
 README walks the whole pipeline in ~5 minutes. Happy to demo it live for the research team.
 
 Best,
