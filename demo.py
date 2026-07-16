@@ -83,7 +83,15 @@ def main():
 
     # 1. GENERATE + VERIFY
     hr("1. TEXT COMMAND  ->  VERIFIED ENVIRONMENT  (L1 schema / L2 solvable / L3 physics)")
-    specs = get_specs(online)
+    try:
+        specs = get_specs(online)
+    except Exception as ex:
+        if not online:
+            raise
+        print(f"\n[!] live generation unavailable ({type(ex).__name__}: {str(ex)[:140]})")
+        print("[!] falling back to the pre-verified cached specs (check ANTHROPIC_API_KEY / billing).")
+        online = False
+        specs = get_specs(False)
 
     # 2. ORACLE REPLAY GIF (proof the env is beatable)
     hr("2. ORACLE PLAN REPLAY  ->  GIF  (verification that the env is solvable)")
