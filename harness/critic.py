@@ -1,16 +1,20 @@
 """
-World-model critic — code-truth as an automated critic for neural world-model "dreams".
+Rollout-legality checker — a proof-of-concept / DIRECTION, not a proven capability.
 
-GI's founders authored DIAMOND, a diffusion world model that predicts future frames. A world
-model can hallucinate: an object teleports, a wall is walked through, an item is "held" that was
-never reached, a door opens with no key. A VLM or a learned reward model judging pixels cannot
-reliably catch these — but the code-defined environment CAN, exactly and for free.
+The idea: the same gridlogic that proves solvability can also check whether a rollout obeys the
+environment's rules. Given a sequence of engine STATES, it asks of every transition — *is there a
+single legal action, under the real grid rules, that produces it?* — and flags the ones with no
+legal action (teleports, wall phasing, ungrounded pickups, no-push crate moves).
 
-Given a rollout (a sequence of engine states — e.g. decoded from a world model's predicted
-frames), this critic asks of every transition: *is there a single legal action, under the real
-grid rules, that produces it?* If not, the transition is flagged as hallucinated, with the rule
-it broke. This turns the same gridlogic that verifies solvability into a dynamics critic — a
-direct, on-thesis use of code-truth for world-model training/eval.
+Motivation: GI's founders authored DIAMOND, a diffusion world model; such models hallucinate
+dynamics that a per-frame VLM / pixel reward-model reads as plausible. Code-truth can catch them.
+
+HONEST SCOPE (read before believing the pitch):
+  * The illustration (_demo / forge_hallucination) *injects* the very corruptions critique()
+    detects — it demonstrates the mechanism, it does not discover anything on its own.
+  * It operates on discrete engine STATE, not pixels. Catching a real DIAMOND-class model's
+    pixel-space hallucinations would require decoding predicted frames back to state first.
+So: a direction worth building, illustrated concretely — not a load-bearing result.
 
 Run the illustration:  uv run python -m harness.critic
 """
@@ -108,7 +112,7 @@ def _demo():
     plan, _ = solve(level, spec.objective)
     real = rollout_from_plan(level, plan)
 
-    print("code-truth as a world-model critic — scene:", spec.name)
+    print("rollout-legality checker (PoC; violations injected) — scene:", spec.name)
     print(f"  FAITHFUL rollout ({len(real)} states): consistency = {score(level, real):.0%}, "
           f"violations = {len(critique(level, real))}")
 

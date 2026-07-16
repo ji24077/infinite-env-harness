@@ -2,7 +2,7 @@
 The DSL — a typed, constrained description of a 2D environment.
 
 This single artifact is the center of the whole harness. It is, at once:
-  * the LLM's generation target (produced via strict tool use),
+  * the LLM's generation target (produced via forced tool use),
   * the compiler's input (spec -> playable world),
   * the objective definition (a list of executable predicates = code-level ground truth),
   * the thing the verifier proves solvable.
@@ -162,7 +162,7 @@ class EnvSpec(BaseModel):
 
 
 # ── Tool-use schema for the generator (SHAPE guarantee) ─────────────────────────
-# Deliberately hand-written and flattened so Claude's strict tool use produces clean
+# Deliberately hand-written and flattened so Claude's forced tool use produces clean
 # JSON. Semantic constraints (bounds, references) are checked afterward by EnvSpec.
 
 TOOL_SCHEMA = {

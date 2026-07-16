@@ -1,7 +1,7 @@
 # Infinite Environment Harness
 
 **Text command → a *provably solvable* 2D environment with a code-defined reward, exposed
-through a standard RL interface — minted infinitely, in code.**
+through a standard RL interface — generated on demand, in code.**
 
 ![hero](assets/hero.gif)
 
@@ -46,32 +46,30 @@ live from text. No `uv`? See [requirements.txt](requirements.txt) (`pip`, Python
 3. ROLLOUT         -> trace.jsonl + frames/    (pixel frame + code reward = a training shard)
 4. MUTATION        -> 10 NEW verified envs      (ACCEL-inspired, auto difficulty labels)
 5. EVAL SCORECARD  -> success / efficiency, difficulty-stratified
-6. WORLD-MODEL CRITIC -> flags hallucinated dynamics   (the headline, below)
-7. CODE vs PIXEL   -> supporting illustrative micro-benchmark
-8. RL LEARNABILITY -> PPO reward curve          (the environments feed RL)
+6. LEGALITY CRITIC -> flags injected illegal transitions   (a direction; see below)
+7. CODE vs PIXEL   -> illustrative micro-benchmark (constructed occlusion scene)
+8. RL LEARNABILITY -> PPO reward curve          (the environments feed RL — the headline)
 ```
 
-## Headline: code-truth as a world-model critic
+## Headline: provably-solvable environments that feed RL
 
-The founders authored **DIAMOND**, a diffusion world model. World models hallucinate — an object
-teleports, a wall is walked through, an item is "held" that was never reached. A VLM or learned
-reward model judging pixels cannot reliably catch this; the code-defined environment can, exactly
-and for free. The same `gridlogic` that verifies solvability doubles as a **dynamics critic**:
-given a rollout (e.g. decoded from a world model's predicted frames), it asks of every transition
-*"is there a single legal action that produces it?"* and flags the ones that break the rules.
+The load-bearing result is the flywheel itself — and every piece is reproducible with no API key.
+Each generated (or mutated) environment is run through the L2 solver: if there is no plan, or no
+plan within its `time_limit`, it is rejected and regenerated, so **every accepted environment is
+provably beatable in the engine we ship**. The oracle plan that proves it is reused three ways
+(difficulty label, L3 replay witness, reward-shaping cost-to-go), and a small off-the-shelf PPO
+mounted on one generated env climbs that reward to an oracle-optimal solve:
 
-![critic](assets/critic.png)
+![learnability](assets/learnability.png)
 
-`uv run python -m harness.critic` scores a faithful rollout at **100%** consistency and a
-hallucinated one at **81%**, flagging every illegal transition — teleports, ungrounded pickups,
-no-push crate moves — the exact hallucinations a per-frame VLM or pixel reward-model would miss.
-Reframed: **infinite verified environments as world-model training data, code-truth + oracle
-cost-to-go as an automated critic** for the dreams. This is a genuine capability (arbitrary
-rule-checking), not a constructed demo — and it lands directly in the founders' wheelhouse.
+Mean reward **≈ −1.3 → 10.4** on `coins_hazard`; the trained agent solves it at oracle-optimal
+length. *The same solver that proves solvability supplies the training signal.* Reproduce exactly
+with `uv run --extra rl python learnability.py`; the offline flywheel (generate → verify → oracle
+GIF → trace → mutate) is the top of `uv run demo.py --offline`.
 
 ## Supporting: code-truth vs pixel perception (an illustrative micro-benchmark)
 
-A smaller, honest illustration of the same principle on **one deliberately constructed** occlusion
+A small illustration of *why* objectives live in code, on **one deliberately constructed** occlusion
 scene (an enemy is placed on the can). On the same saved frames, a frame-exact code predicate is
 compared against a perception model answering *"has the can been picked up?"*:
 
@@ -80,18 +78,23 @@ compared against a perception model answering *"has the can been picked up?"*:
 Code truth is exact; the offline pixel **stand-in** detector disagrees on 6 of 15 frames (occlusion
 false positives), at a per-frame image scan vs a microsecond predicate read (`uv run demo.py
 --offline` prints the medians). `uv run python evaluate.py --vlm --live` swaps in a **real Claude
-VLM** — in one observed run it took ~1.7 s/frame + $ per call. Treat this as an illustration, not a
-general VLM benchmark; the critic above is the load-bearing result.
+VLM** — in one observed run it took ~1.7 s/frame + $ per call. This is an illustration, not a
+general VLM benchmark.
 
-## These environments feed RL
+## A direction: code-truth as a rollout-legality checker
 
-![learnability](assets/learnability.png)
+The founders authored **DIAMOND**, a diffusion world model, which motivates a natural extension: the
+same `gridlogic` that proves solvability can also **check whether a rollout obeys the environment's
+rules**, flagging transitions with no legal action (teleports, ungrounded pickups, no-push crate
+moves). `uv run python -m harness.critic` illustrates the mechanism by *injecting* those corruptions
+into an oracle rollout and catching each (faithful 100% vs hallucinated 81%):
 
-A small off-the-shelf PPO (stable-baselines3) mounted on one generated env (`coins_hazard`): mean
-reward climbs **≈ −1.3 → 10.4** and the trained agent solves it at **oracle-optimal** length. The
-reward it climbs is potential-based shaping sourced from the oracle cost-to-go plus the sparse
-code-truth terminal — *the same solver that proves solvability supplies the training signal.* The
-default `uv run --extra rl python learnability.py` reproduces this exact figure.
+![critic](assets/critic.png)
+
+**Honest scope:** this is a proof-of-concept, not a proven capability — the illustration plants the
+violations it detects, and it operates on discrete engine **state**, not pixels. Wiring it to a
+real DIAMOND-class model would require decoding predicted frames back to state (the interesting
+future work). It is a *direction*, not a headline claim.
 
 ## How it maps to your research goals
 
@@ -99,7 +102,7 @@ default `uv run --extra rl python learnability.py` reproduces this exact figure.
 |---|---|
 | **Post-training environments** — diverse, at scale | Unbounded diversity via LLM generation; the **mutation engine** expands each base into a curated family of new environments, every one re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py)) |
 | **Code-level verifiable objectives** | Objectives are an **executable predicate program** checked frame-exact against engine state ([`engine/gridlogic.py`](harness/engine/gridlogic.py)) — never a VLM on pixels |
-| **Reward-model training** (code truth → pixels) | Every rollout emits `trace.jsonl` of **(pixel frame, code-truth reward)** pairs; the code-vs-pixel contrast quantifies the gap a reward model would close |
+| **Reward-model training** (code truth → pixels) | Every rollout emits `trace.jsonl` of **(pixel frame, code-truth reward)** pairs — the paired data a reward model trains on; the code-vs-pixel section illustrates the gap it would close |
 | **2D → 3D transfer** | The Gymnasium `Env` exposes the **6-input action shape** GI's policy emits `[fwd,back,left,right,mouseDX,mouseDY]` (`action_mode="controller"`, a grid adapter — mouseDX drives facing, mouseDY reserved) and dual `obs_mode="state"\|"pixels"` — same interface, swap the engine |
 
 ## Architecture
@@ -107,7 +110,7 @@ default `uv run --extra rl python learnability.py` reproduces this exact figure.
 ```
   text ─▶ generator ─▶ compiler ─▶ 3-STAGE VERIFIER ─▶ Gymnasium Env ─▶ { PPO | oracle | your policy }
           (Claude       (spec →     L1 schema (pydantic)  reset()/step()
-           strict         world)    L2 solvable  ─┐       obs: state|pixels
+           forced         world)    L2 solvable  ─┐       obs: state|pixels
            tool use +               L3 physics    │       reward: shaped + code-truth terminal
            repair loop)             (pymunk)      │
                                                   ▼
@@ -156,20 +159,20 @@ evaluate.py        scorecard + code-vs-pixel contrast (--vlm --live for a Claude
 learnability.py    PPO capstone (optional: uv run --extra rl)
 harness/
   dsl/schema.py    the typed DSL (pydantic model + tool-use schema)
-  generator.py     Claude strict tool use + repair loop
+  generator.py     Claude forced tool use + repair loop
   compiler.py      spec -> world
   verifier.py      L1/L2/L3 + oracle plan + difficulty + cost-to-go field
   engine/          gridlogic (semantics), world (hybrid + pymunk), renderer
-  gym_env.py       Gymnasium Env (dual obs, controller contract, shaped reward)
+  gym_env.py       Gymnasium Env (dual obs, controller adapter, shaped reward)
   agents/          scripted oracle, greedy probe, Claude state/pixel agents
   mutate.py        ACCEL-inspired curated mutation (binary regret proxy)
-  eval.py          scorecard + contrast
-  critic.py        world-model dynamics critic (flags hallucinated transitions)
+  eval.py          scorecard + code-vs-pixel illustration
+  critic.py        rollout-legality checker (proof-of-concept / direction)
   fixtures.py      canonical environments (offline cache + tests)
 specs/             pre-verified environments (JSON) for --offline
 assets/            README media (regenerate: uv run python scripts/build_assets.py)
 ```
 
 Reproduce everything: `uv run python scripts/build_specs.py && uv run python scripts/build_assets.py`.
-Tests: `uv run --with pytest pytest -q` (13 smoke tests; the generator's tool-use + repair loop
+Tests: `uv run --with pytest pytest -q` (22 smoke tests; the generator's tool-use + repair loop
 is covered via a mocked client, so the online path is exercised without an API key).

@@ -92,8 +92,8 @@ def critic_panel():
     H = top + 2 * 46 + 14 * (len(viols) + 1) + 20
     img = Image.new("RGB", (W, H), (16, 16, 22))
     d = ImageDraw.Draw(img)
-    d.text((8, 8), "code-truth as a world-model critic  |  is each transition physically legal?",
-            fill=(210, 212, 228))
+    d.text((8, 8), "rollout-legality checker (PoC)  |  is each transition a single legal action?  "
+                   "[violations injected]", fill=(210, 212, 228))
     for r, (label, states, flagged, sc) in enumerate(rows):
         y = top + r * 46
         d.text((8, y - 2), f"{label}  ({sc:.0%} consistent)", fill=(150, 154, 174))
@@ -102,7 +102,7 @@ def critic_panel():
             col = (235, 70, 70) if i in flagged else (80, 200, 120)
             d.rectangle([x, y + 14, x + cw - 2, y + 34], fill=col)
     y0 = top + 2 * 46 + 4
-    d.text((8, y0), "flagged (a per-frame VLM / pixel reward-model would miss these):", fill=(235, 120, 90))
+    d.text((8, y0), "flagged transitions (no single legal action produces them):", fill=(235, 120, 90))
     for k, v in enumerate(viols):
         d.text((16, y0 + 14 * (k + 1)), f"step {v.step}: {v.reason}", fill=(200, 202, 216))
     img.save(os.path.join(ASSETS, "critic.png"))

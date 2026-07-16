@@ -11,9 +11,9 @@ It walks the full factory pipeline:
   3. rollout       -> trace.jsonl + frames/ (pixel frame + code-truth reward = a training shard)
   4. mutation      -> 10 new verified environments, ACCEL-inspired, auto difficulty labels
   5. scorecard     -> success / efficiency, difficulty-stratified (the eval use case)
-  6. world-model critic -> the headline: code-truth flags hallucinated dynamics a VLM would miss
+  6. legality critic -> a direction: code-truth flags injected illegal transitions in a rollout
   7. code vs pixel -> supporting illustrative micro-benchmark on a constructed occlusion scene
-  8. RL capstone   -> pointer to the PPO reward curve (env feeds RL)
+  8. RL capstone   -> the headline: PPO climbs the reward curve (these envs feed RL)
 """
 
 from __future__ import annotations
@@ -138,8 +138,8 @@ def main():
     sc = E.scorecard(all_specs, epsilon=0.12, seed=1)
     print(E.format_scorecard(sc))
 
-    # 6. WORLD-MODEL CRITIC (headline)
-    hr("6. WORLD-MODEL CRITIC  (headline: code-truth flags hallucinated dynamics)")
+    # 6. ROLLOUT-LEGALITY CRITIC (a direction, honestly scoped)
+    hr("6. ROLLOUT-LEGALITY CRITIC  (a direction: code-truth checks rollout legality)")
     from harness import critic as CR
     from harness.verifier import solve
     from harness.engine import gridlogic as _G
@@ -147,13 +147,14 @@ def main():
     clevel = _G.build_level(cspec)
     cplan, _ = solve(clevel, cspec.objective)
     real = CR.rollout_from_plan(clevel, cplan)
-    dreamed = CR.forge_hallucination(clevel, real)
+    dreamed = CR.forge_hallucination(clevel, real)   # we INJECT the illegal transitions here
     vio = CR.critique(clevel, dreamed)
     print(f"    faithful rollout    : consistency {CR.score(clevel, real):.0%}  (0 violations)")
-    print(f"    hallucinated rollout: consistency {CR.score(clevel, dreamed):.0%}  ({len(vio)} illegal transitions flagged)")
+    print(f"    hallucinated rollout: consistency {CR.score(clevel, dreamed):.0%}  ({len(vio)} injected illegal transitions caught)")
     for v in vio[:4]:
         print(f"      - step {v.step}: {v.reason}")
-    print("    -> code-truth catches teleports / ungrounded pickups a pixel judge would miss.  see assets/critic.png")
+    print("    scope: proof-of-concept on discrete STATE (the demo plants the violations it catches);")
+    print("    wiring to a real world model needs a frame->state decoder — a direction, not a claim.")
 
     # 7. CODE vs PIXEL CONTRAST (supporting illustration)
     hr("7. CODE-TRUTH vs PIXEL PERCEPTION  (supporting: illustrative micro-benchmark)")
@@ -168,8 +169,8 @@ def main():
     print(f"    -> code truth is exact and ~{ratio:.0f}x cheaper than the pixel scan.  strip -> {strip}")
     print("    (evaluate.py --vlm --live swaps the pixel stand-in for a real Claude VLM: ~1.7 s/frame + $)")
 
-    # 8. RL LEARNABILITY CAPSTONE
-    hr("8. RL LEARNABILITY  (these envs feed reinforcement learning)")
+    # 8. RL LEARNABILITY CAPSTONE (the headline result)
+    hr("8. RL LEARNABILITY  (the headline: these verified envs feed reinforcement learning)")
     if os.path.exists("assets/learnability.png"):
         print("    assets/learnability.png — PPO reward on 'Coins & Hazard' climbs from failing")
         print("    (~ -1.3) to solving (~10.4), at oracle-optimal length.")
@@ -179,7 +180,7 @@ def main():
 
     print("\n" + "=" * 72)
     print("  DONE. Generated + verified environments, an oracle-solved GIF, a training-shard")
-    print("  trace, 10 curated variants, an eval scorecard, the world-model critic, the")
+    print("  trace, 10 curated variants, an eval scorecard, a legality-checker direction, a")
     print("  code-vs-pixel illustration, and a PPO learnability curve — the factory, end to end.")
     print("=" * 72)
 

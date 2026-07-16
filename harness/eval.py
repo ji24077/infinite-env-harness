@@ -1,7 +1,7 @@
 """
 Evaluator — turns the environment factory into a benchmark suite (GI's "training AND
-evaluating" use case), plus an illustrative code-truth-vs-pixel micro-benchmark. (The
-load-bearing code-truth-vs-perception result is the world-model critic in harness/critic.py.)
+evaluating" use case), plus an illustrative code-truth-vs-pixel micro-benchmark on one
+deliberately constructed occlusion scene (not a general VLM benchmark).
 
 Two products:
 

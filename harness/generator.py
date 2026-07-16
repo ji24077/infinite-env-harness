@@ -1,5 +1,5 @@
 """
-Generator — text command -> verified EnvSpec, via Claude strict tool use + a repair loop.
+Generator — text command -> verified EnvSpec, via Claude forced tool use + a repair loop.
 
 Two-layer reliability:
   1. SHAPE is guaranteed by tool use: Claude must call `emit_environment` whose input_schema

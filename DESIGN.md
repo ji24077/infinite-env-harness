@@ -35,10 +35,10 @@ intentional.
 
 ## Two-layer reliability (shape vs meaning)
 
-Anthropic structured/tool-use guarantees the generated JSON's **shape**; it cannot guarantee a
-coordinate is in-bounds or a key is reachable. So: **strict tool use → shape**, **verifier L1/L2/L3
-→ meaning**, **repair loop → convergence** (structured failure fed back, ≤3 retries). The factory
-raises rather than ship an unverified environment.
+Anthropic forced tool use (`tool_choice`) guarantees the generated JSON's **shape**; it cannot
+guarantee a coordinate is in-bounds or a key is reachable. So: **forced tool use → shape**,
+**verifier L1/L2/L3 → meaning**, **repair loop → convergence** (structured failure fed back, ≤3
+retries). The factory raises rather than ship an unverified environment.
 
 ## The agent is an oracle, not the product
 
@@ -56,7 +56,7 @@ offline demo needs no API key: a search oracle is a perfectly good solvability w
 | Regret-inspired curation of a mutation curriculum (binary proxy, not the full minimax-regret estimator) | PAIRED (Dennis 2020), **ACCEL** (Parker-Holder 2022) | `mutate.py` (oracle-vs-greedy regret proxy) |
 | Generate → **solver-verify** solvability, filter unplayable | Sokoban/Mario PCG (Todd 2023, MarioGPT 2023) | `verifier.py` L2 BFS gate |
 | Standard RL env interface for a policy to mount on | Gymnasium / MiniGrid–Miniworld (Farama) | `gym_env.py` |
-| Code-truth as a critic for neural world models (which lack code truth) | DIAMOND / Genie-class | `critic.py` (flags hallucinated dynamics); `eval.py` contrast |
+| Code-truth as a rollout-legality checker (a direction toward critiquing world models) | DIAMOND / Genie-class | `critic.py` (PoC, discrete-state); `eval.py` contrast |
 
 ## What we deliberately did NOT build
 
