@@ -60,7 +60,9 @@ perception model detecting *"the can has been picked up."* An enemy patrol occlu
 The pixel model **mis-fires the pickup 10 frames early** (occlusion looks like removal) and is
 **~200× slower**; the code predicate is exact and ~free. Offline it uses a deterministic pixel
 detector (reproducible, no API); `uv run python evaluate.py --vlm --live` swaps in a Claude VLM
-judge on the same frames. *This is the piece that turns GI's premise into a number.*
+judge on the same frames — *verified live:* the VLM runs **~1.7 s/frame + $/call** and was **wrong
+on 5 of 15 frames** (never cleanly registering the pickup), vs code truth exact at **~3 µs/frame**.
+*This is the piece that turns GI's premise into a number.*
 
 ## These environments feed RL
 
