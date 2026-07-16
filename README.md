@@ -98,12 +98,18 @@ The *same* Claude on the *same* level, differing only in what it observes:
 | **code-state** (coordinate-tagged) | solves at **oracle-optimal** length (9 steps) |
 | **rendered frames only** | works but is unreliable/inefficient — 17 steps here (vs 9 optimal), and on another run it did not finish within budget |
 
-That gap is not a bug — it is *why* GI trains a **vision-based** policy: pixel-space spatial
-navigation is the unreliable part. And the generated environments are not all this easy: crate
-planning (`push_delivery`) and enemy timing (`guarded can`, `patrol_gauntlet`) require real
-multi-step planning — a myopic greedy agent fails them (that gap is the ACCEL regret signal). So the
-factory yields a ready **training and eval ground** for exactly that vision policy. Reproduce:
-`uv run --env-file .env python scripts/nav_demo.py` (needs an API key; numbers vary run to run).
+Two honest reads, both useful to GI. On this **easy** env the gap is one of *efficiency*, not
+success (state 9 vs pixels 17); pixels are the less reliable modality. But the honest finding is
+actually **stronger than a clean modality split**: the generated environments are not all this easy,
+and on `push_delivery` (crate planning) and the guarded-can / `patrol_gauntlet` timing levels the
+**code-state** agent *also* fails in-loop — it wanders past the step budget, or is caught by a patrol
+— not just the pixel one (measured; `assets/nav_probe.json`: state fails push_delivery at the step
+cap and is caught by the patrol in occlusion_can). So these environments genuinely stress a
+strong LLM agent *regardless of observation*, which is exactly the ready **training and eval ground**
+a vision policy needs; the pixel-vs-state efficiency gap on the solvable easy case is the extra
+signal on top. (Measured with a deliberately simple 1-action-per-call agent — a stronger scaffold may
+close some of it. Reproduce: `uv run --env-file .env python nav_probe.py --envs open_can push_delivery`;
+needs an API key, numbers vary run to run.)
 
 ## Supporting: code truth as label-free supervision for a pixel reward model
 
@@ -140,7 +146,7 @@ future work). It is a *direction*, not a headline claim.
 
 | GI use case | This harness |
 |---|---|
-| **Post-training environments** — diverse, at scale | A **compounding MAP-Elites engine** (`evolve()`): survivors are re-fed as parents and edited by operators that change the **objective, entity roster, and room topology** — not single-edit clones. On the fixtures it lifts distinct objectives 1→11 and entity-multisets 1→11 (lineage depth 4), every child re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py), [`operators.py`](harness/operators.py)). Combinatorially large within the fixed DSL vocabulary — the honest ceiling, not literally infinite. |
+| **Post-training environments** — diverse, at scale | A **compounding MAP-Elites engine** (`evolve()`): survivors are re-fed as parents and edited by operators that change the **objective, entity roster, and room topology** — not single-edit clones. Against the old single-edit engine's **1 distinct objective / 1 entity-multiset** (lineage 0), `evolve()` reaches **11 distinct objectives and 11 entity-multisets** with edits compounding to **lineage depth 4** — every child re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py), [`operators.py`](harness/operators.py)). (Archive is keyed by (objective, difficulty); the 4 seed fixtures start at 4 objectives. Regret is a *post-hoc* ranking of the archive, not a live selection pressure — honest scope.) Combinatorially large within the fixed DSL vocabulary — the honest ceiling, not literally infinite. |
 | **Code-level verifiable objectives** | Objectives are an **executable predicate program** checked frame-exact against engine state ([`engine/gridlogic.py`](harness/engine/gridlogic.py)) — never a VLM on pixels |
 | **Reward-model training** (code truth → pixels) | Rollouts emit **(pixel frame, code-truth reward)** pairs; `harness/reward_model.py` trains a tiny CNN on **only** those code labels and reaches **~18% held-out disagreement** — a pixel reward model approximating the exact, label-free code supervision ([`scripts/train_reward_model.py`](scripts/train_reward_model.py)) |
 | **2D → 3D transfer** | The Gymnasium `Env` exposes the **6-input action shape** GI's policy emits `[fwd,back,left,right,mouseDX,mouseDY]` (`action_mode="controller"`, a grid adapter: the 4 move channels select the step, mouseDX rotates the rendered facing, mouseDY is reserved) and dual `obs_mode="state"\|"pixels"` — same interface shape, swap the engine |

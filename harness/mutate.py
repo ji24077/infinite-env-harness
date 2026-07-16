@@ -137,12 +137,18 @@ def mutate(base_spec: dict, n: int = 10, seed: int = 0,
     return survivors
 
 
-# ── compounding, generative evolution (MAP-Elites / ACCEL-flavored) ──────────────────
+# ── compounding, generative evolution (MAP-Elites over objective x difficulty) ───────
 # The single-edit mutate() above never changes the objective, entity roster, or topology, so its
-# output is a jittered neighborhood of ONE template. evolve() fixes that: it keeps an archive keyed
-# by (objective-signature, difficulty-band), re-samples SURVIVORS as parents, and applies 1..k of
-# the richer operators.py edits — so children compound edits across a lineage, and the objective /
-# entities / rooms genuinely change. Every child still passes the unchanged verify() gate.
+# output is a jittered neighborhood of ONE template. evolve() fixes that: it keeps a MAP-Elites
+# archive keyed by (objective-signature, difficulty-band), re-samples SURVIVORS as parents, and
+# applies 1..k of the richer operators.py edits — so children compound edits across a lineage, and
+# the objective / entities / rooms genuinely change. Every child still passes the unchanged verify().
+#
+# Honest scope (what this is NOT): the two archive descriptors are objective and difficulty; entity
+# roster and room topology are changed by the operators but are NOT descriptor axes, so the archive
+# does not explicitly select for topological spread. The ACCEL-inspired regret proxy is computed
+# ONCE on the final archive to RANK it (accel=True) — it is a post-hoc ranking, not a live
+# minimax-regret selection pressure during evolution. Both are deliberate simplicity/speed choices.
 
 from harness.operators import ALL_OPERATORS, within_caps
 

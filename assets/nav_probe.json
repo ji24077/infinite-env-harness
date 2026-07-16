@@ -1,0 +1,34 @@
+[
+  {
+    "env": "push_delivery",
+    "oracle": 13,
+    "mode": "state",
+    "won": false,
+    "steps": 30,
+    "err": null
+  },
+  {
+    "env": "push_delivery",
+    "oracle": 13,
+    "mode": "pixel",
+    "won": false,
+    "steps": 30,
+    "err": null
+  },
+  {
+    "env": "occlusion_can",
+    "oracle": 14,
+    "mode": "state",
+    "won": false,
+    "steps": 11,
+    "err": null
+  },
+  {
+    "env": "occlusion_can",
+    "oracle": 14,
+    "mode": "pixel",
+    "won": false,
+    "steps": 20,
+    "err": null
+  }
+]
