@@ -143,16 +143,15 @@ def push_delivery() -> dict:
     )
 
 
-# ── 6) contrast scene: an enemy patrol occludes the can early (at spawn) ─────────
+# ── 6) grab-the-can while dodging a guard that sweeps across the can's cell ───────
 def occlusion_can() -> dict:
-    """Used by the code-vs-pixel contrast. A deadly guard sits ON the can for the first few ticks
-    (then moves away), so a pixel detector loses sight of the can early and FALSELY reports
-    'picked up' while code truth stays exact until the agent actually grabs it. The oracle both
-    dodges the guard and grabs the can — the verifier proves that timed path exists."""
+    """A can pickup guarded by a deadly patrol that sweeps across the can's cell early: the agent
+    must time its grab and dodge the guard. The verifier proves that timed path exists. (Also one
+    of the can-containing envs the pixel reward model trains on.)"""
     W, H = 16, 9
     g = _room(W, H)
     return dict(
-        name="Occlusion - Can + Patrol", width=W, height=H, tiles=g,
+        name="Guarded Can", width=W, height=H, tiles=g,
         entities=[
             {"type": "player_start", "id": "p", "pos": [2, 4]},
             {"type": "table", "id": "t1", "pos": [11, 4]},

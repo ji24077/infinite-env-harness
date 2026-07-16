@@ -15,7 +15,6 @@ from harness.rollout import run_episode
 from harness.agents.scripted import ScriptedOracle
 from harness.engine import renderer as R
 from harness.engine import gridlogic as G
-from harness import eval as E
 
 ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
 
@@ -58,12 +57,6 @@ def gallery():
         board.paste(t, (gap + c * (cw + gap), gap + r * (ch + gap)))
     board.save(os.path.join(ASSETS, "gallery.png"))
     print(f"  gallery.png ({len(thumbs)} envs)")
-
-
-def contrast():
-    c = E.run_contrast(F.occlusion_can(), use_vlm=False)
-    E.render_contrast_strip(c, os.path.join(ASSETS, "contrast.png"))
-    print(f"  contrast.png ({c['disagreements']} disagreements)")
 
 
 def critic_panel():
@@ -113,6 +106,5 @@ if __name__ == "__main__":
     os.makedirs(ASSETS, exist_ok=True)
     hero_gif()
     gallery()
-    contrast()
     critic_panel()
     print("assets built.")

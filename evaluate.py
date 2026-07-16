@@ -1,13 +1,13 @@
 """
 evaluate.py — the benchmark suite (GI's "evaluating a policy" use case), standalone.
 
-  uv run python evaluate.py                     # scorecard over all cached envs + pixel contrast
-  uv run python evaluate.py --agent scripted    # policy under test (default noisy oracle)
-  uv run python evaluate.py --vlm --live         # swap the pixel detector for a Claude VLM judge
-                                                 #   (needs ANTHROPIC_API_KEY; judges saved frames)
+  uv run python evaluate.py                 # scorecard over all cached, verified envs
+  uv run python evaluate.py --epsilon 0.2   # oracle noise for the run
 
-The code-vs-perception contrast is the empirical version of GI's own rationale: code-level
-objectives are checked frame-exact against engine state, a perception model reading pixels is not.
+A policy (default: a noisy oracle) is run across every verified environment; the report gives
+success rate and steps-vs-oracle efficiency, difficulty-stratified — the kind of eval you would
+run a candidate policy against. (The honest code-truth -> pixels story is the trained pixel
+reward model: uv run --extra rl python scripts/train_reward_model.py.)
 """
 
 from __future__ import annotations
@@ -30,35 +30,12 @@ def load_cached(name):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--epsilon", type=float, default=0.12, help="oracle noise for the scorecard")
-    ap.add_argument("--vlm", action="store_true", help="use a Claude VLM judge for the contrast")
-    ap.add_argument("--live", action="store_true", help="allow live API calls (required for --vlm)")
     args = ap.parse_args()
 
     specs = {n: load_cached(n) for n in F.ALL}
-
     print("=" * 66 + "\n  EVAL SCORECARD  (noisy oracle across verified envs)\n" + "=" * 66)
     sc = E.scorecard(specs, epsilon=args.epsilon, seed=1)
     print(E.format_scorecard(sc))
-
-    print("\n" + "=" * 66 + "\n  CODE-TRUTH vs " +
-          ("CLAUDE VLM" if (args.vlm and args.live) else "PIXEL DETECTOR") +
-          "  PERCEPTION\n" + "=" * 66)
-    use_vlm = args.vlm and args.live
-    if args.vlm and not args.live:
-        print("  --vlm requires --live (and ANTHROPIC_API_KEY); falling back to the pixel detector.")
-    c = E.run_contrast(load_cached("occlusion_can"), use_vlm=use_vlm)
-    E.render_contrast_strip(c, "assets/contrast.png")
-    print(f"  scene '{c['spec_name']}': {c['n_frames']} frames")
-    print(f"  code-truth  : pickup exact at frame {c['code_first_true']}")
-    print(f"  perception  : disagrees with code truth on {c['disagreements']}/{c['n_frames']} frames "
-          f"(occlusion false positives)")
-    if use_vlm:
-        print(f"  timing      : code ~{c['code_time_us']} us (median) vs VLM ~{c['perc_time_s']} s/frame + $ per call")
-    else:
-        print(f"  timing      : code ~{c['code_time_us']} us vs pixel scan ~{c['perc_time_us']} us (medians, "
-              f"~{c['perc_time_us']/max(c['code_time_us'],1e-9):.0f}x)")
-    print("  -> code-defined objectives are exact and ~free; pixel perception is fooled by occlusion.")
-    print("  strip -> assets/contrast.png")
 
 
 if __name__ == "__main__":

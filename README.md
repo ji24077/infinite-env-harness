@@ -18,8 +18,9 @@ General Intuition needs an infinite supply of environments to train and evaluate
 policy, with **code-defined ground truth** for objectives and rewards — their stated next
 milestone is *"generate simulation worlds to train other agents."* This harness is that factory,
 in 2D. Where **OMNI-EPIC** generates environments as *arbitrary code*, we constrain generation to
-a **typed DSL**, which buys what arbitrary code can't: every environment is run through a solver
-that **proves it is solvable** (within a search budget), extracts an **oracle plan**, and
+a **typed DSL**, which buys what arbitrary code can't: every generated environment is run through a
+solver, and only the ones it **proves solvable** (within a search budget, within their step limit)
+are **accepted** — the rest are rejected and regenerated. Acceptance extracts an **oracle plan**, and
 **auto-labels difficulty** from that plan's length (plus light entity weighting). Where a **neural
 world model (Genie-class)** can't give you code-defined truth,
 this supplies exactly that: objectives are executable predicates checked against engine state, not
@@ -53,7 +54,7 @@ uv run play.py                  # play it yourself: arrow keys / WASD to move, S
 4. MUTATION        -> 10 NEW verified envs      (ACCEL-inspired, auto difficulty labels)
 5. EVAL SCORECARD  -> success / efficiency, difficulty-stratified
 6. LEGALITY CRITIC -> flags injected illegal transitions   (a direction; see below)
-7. CODE vs PIXEL   -> illustrative micro-benchmark (constructed occlusion scene)
+7. REWARD MODEL    -> pixel reward model trained on code labels (~18% held-out; GI use-case #3)
 8. RL LEARNABILITY -> PPO reward curve          (the environments feed RL — the headline)
 ```
 
@@ -82,14 +83,16 @@ itself** (not the scripted oracle) doing it, on a generated level:
 
 The *same* Claude on the *same* level, differing only in what it observes:
 
-| observation | result |
+| observation | result (on `open_can`, an easy env) |
 |---|---|
-| **code-state** (coordinate-tagged) | solves at **oracle-optimal** length (9 steps), reliably |
+| **code-state** (coordinate-tagged) | solves at **oracle-optimal** length (9 steps) |
 | **rendered frames only** | works but is unreliable/inefficient — 17 steps here (vs 9 optimal), and on another run it did not finish within budget |
 
 That gap is not a bug — it is *why* GI trains a **vision-based** policy: pixel-space spatial
-navigation is the unreliable part. This factory reproduces the gap concretely in 2D, so every
-generated environment is a ready **training and eval ground** for exactly that policy. Reproduce:
+navigation is the unreliable part. And the generated environments are not all this easy: crate
+planning (`push_delivery`) and enemy timing (`guarded can`, `patrol_gauntlet`) require real
+multi-step planning — a myopic greedy agent fails them (that gap is the ACCEL regret signal). So the
+factory yields a ready **training and eval ground** for exactly that vision policy. Reproduce:
 `uv run --env-file .env python scripts/nav_demo.py` (needs an API key; numbers vary run to run).
 
 ## Supporting: code truth as label-free supervision for a pixel reward model
@@ -105,9 +108,8 @@ the predicate ticks) and evaluate on **held-out (unseen) episodes**:
   exact target a pixel/vision reward model is trained toward. `uv run --extra rl python
   scripts/train_reward_model.py` reproduces the number.
 
-A simpler no-ML illustration — a hand-tuned pixel detector fooled by an occluding sprite
-(`assets/contrast.png`; `uv run python evaluate.py`, or `--vlm --live` for a real Claude VLM,
-~1.7 s/frame) — is included as an *illustration*, not a load-bearing result.
+The exact code label is 0-error and label-free; the pixel model only *approximates* it — which is
+precisely the point (there is no hand-tuned detector or fabricated superiority number here).
 
 ## A direction: code-truth as a rollout-legality checker
 
@@ -131,7 +133,7 @@ future work). It is a *direction*, not a headline claim.
 | **Post-training environments** — diverse, at scale | Unbounded diversity via LLM generation; the **mutation engine** expands each base into a curated family of new environments, every one re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py)) |
 | **Code-level verifiable objectives** | Objectives are an **executable predicate program** checked frame-exact against engine state ([`engine/gridlogic.py`](harness/engine/gridlogic.py)) — never a VLM on pixels |
 | **Reward-model training** (code truth → pixels) | Rollouts emit **(pixel frame, code-truth reward)** pairs; `harness/reward_model.py` trains a tiny CNN on **only** those code labels and reaches **~18% held-out disagreement** — a pixel reward model approximating the exact, label-free code supervision ([`scripts/train_reward_model.py`](scripts/train_reward_model.py)) |
-| **2D → 3D transfer** | The Gymnasium `Env` exposes the **6-input action shape** GI's policy emits `[fwd,back,left,right,mouseDX,mouseDY]` (`action_mode="controller"`, a grid adapter — mouseDX drives facing, mouseDY reserved) and dual `obs_mode="state"\|"pixels"` — same interface, swap the engine |
+| **2D → 3D transfer** | The Gymnasium `Env` exposes the **6-input action shape** GI's policy emits `[fwd,back,left,right,mouseDX,mouseDY]` (`action_mode="controller"`, a grid adapter: the 4 move channels select the step, mouseDX rotates the rendered facing, mouseDY is reserved) and dual `obs_mode="state"\|"pixels"` — same interface shape, swap the engine |
 
 ## Architecture
 

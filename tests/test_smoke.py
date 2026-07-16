@@ -61,14 +61,6 @@ def test_mutations_all_verified_solvable():
         assert verify(v["spec"]).ok
 
 
-def test_pixel_perception_is_fooled_by_occlusion():
-    c = E.run_contrast(F.occlusion_can(), use_vlm=False)
-    # code truth is exact; the pixel model mis-fires early under occlusion
-    assert c["code_first_true"] is not None
-    assert c["disagreements"] >= 1
-    assert c["latency_frames"] is not None and c["latency_frames"] < 0
-
-
 def test_scorecard_runs():
     sc = E.scorecard({n: F.ALL[n]() for n in F.ALL}, epsilon=0.1, seed=0)
     assert sc["aggregate"]["success_rate"] == 1.0
@@ -160,12 +152,6 @@ def test_controller_deadzone_is_noop():
     before = tuple(env.world.state.agent)
     env.step(np.zeros(6, dtype=np.float32))                  # no intent -> no move
     assert tuple(env.world.state.agent) == before
-
-
-def test_contrast_timing_and_disagreements():
-    c = E.run_contrast(F.occlusion_can(), use_vlm=False)
-    assert c["code_time_us"] > 0 and c["perc_time_us"] > 0
-    assert c["disagreements"] >= 1
 
 
 def test_deadly_enemy_kills_on_contact():

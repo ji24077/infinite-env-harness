@@ -12,7 +12,7 @@ It walks the full factory pipeline:
   4. mutation      -> 10 new verified environments, ACCEL-inspired, auto difficulty labels
   5. scorecard     -> success / efficiency, difficulty-stratified (the eval use case)
   6. legality critic -> a direction: code-truth flags injected illegal transitions in a rollout
-  7. code vs pixel -> supporting illustrative micro-benchmark on a constructed occlusion scene
+  7. reward model   -> a pixel reward model trained ONLY on code-truth labels (GI use-case #3)
   8. RL capstone   -> the headline: PPO climbs the reward curve (these envs feed RL)
 """
 
@@ -157,18 +157,19 @@ def main():
     print("    scope: proof-of-concept on discrete STATE (the demo plants the violations it catches);")
     print("    wiring to a real world model needs a frame->state decoder — a direction, not a claim.")
 
-    # 7. CODE vs PIXEL CONTRAST (supporting illustration)
-    hr("7. CODE-TRUTH vs PIXEL PERCEPTION  (supporting: illustrative micro-benchmark)")
-    c = E.run_contrast(load_cached("occlusion_can"), use_vlm=False)
-    strip = os.path.join("assets", "contrast.png")
-    E.render_contrast_strip(c, strip)
-    ratio = c['perc_time_us'] / max(c['code_time_us'], 1e-9)
-    print(f"    scene (constructed): '{c['spec_name']}'  ({c['n_frames']} frames)")
-    print(f"    code-truth  : pickup exact at frame {c['code_first_true']}; predicate check ~{c['code_time_us']} us (median)")
-    print(f"    pixel stand-in: disagrees with code truth on {c['disagreements']}/{c['n_frames']} frames "
-          f"(occlusion false positives); scan ~{c['perc_time_us']} us (median)")
-    print(f"    -> code truth is exact and ~{ratio:.0f}x cheaper than the pixel scan.  strip -> {strip}")
-    print("    (evaluate.py --vlm --live swaps the pixel stand-in for a real Claude VLM: ~1.7 s/frame + $)")
+    # 7. CODE-TRUTH -> PIXEL REWARD MODEL (GI use-case #3)
+    hr("7. CODE-TRUTH -> PIXEL REWARD MODEL  (train a pixel model on exact code labels)")
+    rm_path = os.path.join("assets", "reward_model.json")
+    if os.path.exists(rm_path):
+        rm = json.load(open(rm_path))
+        print(f"    code truth      : exact, label-free, ~microseconds ({rm['note']})")
+        print(f"    pixel reward model: {rm['disagreement_rate']:.0%} held-out disagreement "
+              f"(pickup recall {rm['pickup_recall']:.0%}, not-picked {rm['not_picked_recall']:.0%})")
+        print("    -> a pixel model approximates the exact code label it was trained on. That code")
+        print("       label is the supervision a vision reward model is trained toward (GI use-case #3).")
+        print("    reproduce: uv run --extra rl python scripts/train_reward_model.py")
+    else:
+        print("    (run: uv run --extra rl python scripts/train_reward_model.py)")
 
     # 8. RL LEARNABILITY CAPSTONE (the headline result)
     hr("8. RL LEARNABILITY  (the headline: these verified envs feed reinforcement learning)")
@@ -182,7 +183,7 @@ def main():
     print("\n" + "=" * 72)
     print("  DONE. Generated + verified environments, an oracle-solved GIF, a training-shard")
     print("  trace, 10 curated variants, an eval scorecard, a legality-checker direction, a")
-    print("  code-vs-pixel illustration, and a PPO learnability curve — the factory, end to end.")
+    print("  code-trained pixel reward model, and a PPO learnability curve — the factory, end to end.")
     print("=" * 72)
 
 
