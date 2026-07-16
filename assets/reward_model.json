@@ -1,0 +1,8 @@
+{
+  "held_out": "unseen episodes of the can environments",
+  "held_out_frames": 124,
+  "disagreement_rate": 0.185,
+  "pickup_recall": 0.84,
+  "not_picked_recall": 0.808,
+  "note": "trained ONLY on code-truth labels; HUD cropped so it reads the scene, not ticks"
+}

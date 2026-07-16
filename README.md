@@ -92,19 +92,22 @@ navigation is the unreliable part. This factory reproduces the gap concretely in
 generated environment is a ready **training and eval ground** for exactly that policy. Reproduce:
 `uv run --env-file .env python scripts/nav_demo.py` (needs an API key; numbers vary run to run).
 
-## Supporting: code-truth vs pixel perception (an illustrative micro-benchmark)
+## Supporting: code truth as label-free supervision for a pixel reward model
 
-A small illustration of *why* objectives live in code, on **one deliberately constructed** occlusion
-scene (an enemy is placed on the can). On the same saved frames, a frame-exact code predicate is
-compared against a perception model answering *"has the can been picked up?"*:
+GI use-case #3 (reward-model training, code truth → pixels), concretely. The environment emits an
+**exact, label-free** objective signal — `holding(can)` for every frame — free supervision. We train
+a tiny pixel reward model on **only** those code labels (HUD cropped, so it reads the *scene*, not
+the predicate ticks) and evaluate on **held-out (unseen) episodes**:
 
-![contrast](assets/contrast.png)
+- **code truth** — exact, 0 error, ~microseconds, label-free.
+- **trained pixel reward model** — **~18% held-out disagreement** (pickup recall 84%, not-picked
+  81%): it *approximates* the code label from pixels alone. That is the point — code truth is the
+  exact target a pixel/vision reward model is trained toward. `uv run --extra rl python
+  scripts/train_reward_model.py` reproduces the number.
 
-Code truth is exact; the offline pixel **stand-in** detector disagrees on several frames (3 of 15
-in the shipped run; occlusion false positives), at a per-frame image scan vs a microsecond predicate
-read (`uv run demo.py --offline` prints the exact medians). `uv run python evaluate.py --vlm --live`
-swaps in a **real Claude VLM** — in one observed run it took ~1.7 s/frame + $ per call. This is an
-illustration, not a general VLM benchmark.
+A simpler no-ML illustration — a hand-tuned pixel detector fooled by an occluding sprite
+(`assets/contrast.png`; `uv run python evaluate.py`, or `--vlm --live` for a real Claude VLM,
+~1.7 s/frame) — is included as an *illustration*, not a load-bearing result.
 
 ## A direction: code-truth as a rollout-legality checker
 
@@ -127,7 +130,7 @@ future work). It is a *direction*, not a headline claim.
 |---|---|
 | **Post-training environments** — diverse, at scale | Unbounded diversity via LLM generation; the **mutation engine** expands each base into a curated family of new environments, every one re-verified solvable and difficulty-labeled ([`mutate.py`](harness/mutate.py)) |
 | **Code-level verifiable objectives** | Objectives are an **executable predicate program** checked frame-exact against engine state ([`engine/gridlogic.py`](harness/engine/gridlogic.py)) — never a VLM on pixels |
-| **Reward-model training** (code truth → pixels) | Every rollout emits `trace.jsonl` of **(pixel frame, code-truth reward)** pairs — the paired data a reward model trains on; the code-vs-pixel section illustrates the gap it would close |
+| **Reward-model training** (code truth → pixels) | Rollouts emit **(pixel frame, code-truth reward)** pairs; `harness/reward_model.py` trains a tiny CNN on **only** those code labels and reaches **~18% held-out disagreement** — a pixel reward model approximating the exact, label-free code supervision ([`scripts/train_reward_model.py`](scripts/train_reward_model.py)) |
 | **2D → 3D transfer** | The Gymnasium `Env` exposes the **6-input action shape** GI's policy emits `[fwd,back,left,right,mouseDX,mouseDY]` (`action_mode="controller"`, a grid adapter — mouseDX drives facing, mouseDY reserved) and dual `obs_mode="state"\|"pixels"` — same interface, swap the engine |
 
 ## Architecture
@@ -200,6 +203,7 @@ harness/
   agents/          scripted oracle, greedy probe, Claude state/pixel agents
   mutate.py        ACCEL-inspired curated mutation (binary regret proxy)
   eval.py          scorecard + code-vs-pixel illustration
+  reward_model.py  tiny pixel reward model trained on code-truth labels (GI use-case #3)
   critic.py        rollout-legality checker (proof-of-concept / direction)
   fixtures.py      canonical environments (offline cache + tests)
 specs/             pre-verified environments (JSON) for --offline
