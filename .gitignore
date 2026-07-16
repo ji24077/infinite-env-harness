@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .venv/
+.env
+*.env
 runs/
 .DS_Store
 assets/_*.png
